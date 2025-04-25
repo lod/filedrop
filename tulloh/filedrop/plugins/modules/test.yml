@@ -1,0 +1,11 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: false
+  tasks:
+    - ansible.builtin.debug:
+        # msg: "{{ collection_path }}"
+        msg: Hi
+    - name: Do the thing
+      filedrop:
+

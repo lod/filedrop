@@ -1,0 +1,72 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Fetch directory tree
+      # Trying to dump the full tree from root doesn't work well, dev files etc.
+      # So we go a little selective
+      ansible.builtin.find:
+        paths: "{{ item.path }}"
+        recurse: "{{ item.recurse }}"
+        file_type: "any"  # Include directories and links
+      register: find_res
+      loop:
+        - { path: "/", recurse: False }
+        - { path: "/etc", recurse: True }
+        - { path: "/dumped", recurse: True }
+        #- { path: "/etc/profile.d", recurse: True }
+        #- { path: "/etc/issue.d", recurse: True }
+
+    #- name: Dump
+      #ansible.builtin.debug:
+        #var: find_res
+
+    #- name: Dump2
+      #ansible.builtin.debug:
+        #msg: "{{ find_res.results | map(attribute='files') | flatten }}"
+
+    - name: Set up file tree for lookups
+      ansible.builtin.set_fact:
+        tree: "{{ dict(files | map(attribute='path') | zip(files)) }}"
+      vars:
+        files: "{{ find_res.results | map(attribute='files') | flatten }}"
+
+    #- name: Dump
+    #  ansible.builtin.debug:
+    #    var: tree
+    - name: Dump
+      ansible.builtin.debug:
+        msg: "{{ tree | list }}"
+
+    - name: Test expected files
+      ansible.builtin.assert:
+        that:
+          - ("/rootfile" in tree)
+          - ("/etc/bob" in tree)
+          - ("/etc/bob/smith" in tree)
+          - ("/etc/bob/smithy" in tree)
+
+    - name: Get file contents
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop:
+        - /etc/bob/smith
+        - /etc/bob/smithy
+      register: slurped
+
+    - name: Dump
+      ansible.builtin.debug:
+        var: slurped
+
+    - name: Set up content for lookups
+      ansible.builtin.set_fact:
+        contents_b64: "{{ slurped.results | items2dict(key_name='source', value_name='content') }}"
+
+    - name: Test file contents
+      ansible.builtin.assert:
+        that:
+          - contents_b64['/etc/bob/smith'] | b64decode == "SMITH\n"
+          - contents_b64['/etc/bob/smithy'] | b64decode == "olympus\n"  # TODO: Dynamic
+          # ansible_hostname and ansible_facts['nodename'] are both remote system, could do a local setup
+          # Probably better to switch variable
