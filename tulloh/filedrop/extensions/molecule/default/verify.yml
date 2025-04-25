@@ -55,11 +55,11 @@
         - /etc/bob/smithy
       register: slurped
 
-    - name: Dump
-      ansible.builtin.debug:
-        var: slurped
+    #- name: Dump
+    #  ansible.builtin.debug:
+    #    var: slurped
 
-    - name: Set up content for lookups
+    - name: Set up contents for lookups
       ansible.builtin.set_fact:
         contents_b64: "{{ slurped.results | items2dict(key_name='source', value_name='content') }}"
 

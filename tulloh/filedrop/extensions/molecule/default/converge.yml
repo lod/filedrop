@@ -9,3 +9,5 @@
       # tulloh.filedrop.filedrop:
     #- name: Second call
       #filedrop:
+      #
+      # TODO: Should verify the ouput too, maybe try playing with the changed/unchanged
