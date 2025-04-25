@@ -35,9 +35,12 @@
     #- name: Dump
     #  ansible.builtin.debug:
     #    var: tree
-    - name: Dump
-      ansible.builtin.debug:
-        msg: "{{ tree | list }}"
+    #- name: Dump
+    #  ansible.builtin.debug:
+    #    msg: "{{ tree | list }}"
+
+    # File details are as per the stat module
+    # /smithy": {"atime": 1745542108.6770728, "ctime": 1745542045.7403781, "dev": 132, "gid": 0, "gr_name": "root", "inode": 97020399, "isblk": false, "ischr": false, "isdir": false, "isfifo": false, "isgid": false, "islnk": false, "isreg": true, "issock": false, "isuid": false, "mode": "0644", "mtime": 1745542043.0, "nlink": 1, "path": "/smithy", "pw_name": "root", "rgrp": true, "roth": true, "rusr": true, "size": 8, "uid": 0, "wgrp": false, "woth": false, "wusr": true, "xgrp": false, "xoth": false, "xusr": false}
 
     - name: Test expected files
       ansible.builtin.assert:
@@ -46,6 +49,19 @@
           - ("/etc/bob" in tree)
           - ("/etc/bob/smith" in tree)
           - ("/etc/bob/smithy" in tree)
+          # pw_name is the owner
+          - tree["/dumped/d1/f1"]["pw_name"] == "games"
+          - tree["/dumped/d2/f1"]["pw_name"] == "nobody"
+          - tree["/dumped/d3/f1"]["pw_name"] == "games"
+          - tree["/dumped/d1/f1"]["gr_name"] == "dialout"
+          - tree["/dumped/d2/f1"]["gr_name"] == "video"
+          - tree["/dumped/d3/f1"]["gr_name"] == "dialout"
+          - tree["/dumped/d1/t1"]["pw_name"] == "lp"
+          - tree["/dumped/d2/t1"]["pw_name"] == "bin"
+          - tree["/dumped/d3/t1"]["pw_name"] == "lp"
+          - tree["/dumped/d1/t1"]["gr_name"] == "games"
+          - tree["/dumped/d2/t1"]["gr_name"] == "tty"
+          - tree["/dumped/d3/t1"]["gr_name"] == "games"
 
     - name: Get file contents
       ansible.builtin.slurp:

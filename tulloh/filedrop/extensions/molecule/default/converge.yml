@@ -4,8 +4,25 @@
   gather_facts: false
   #become: true
   tasks:
+    # Common users: root, bin, daemon, lp, sync, mail, games, nobody
+    # Common groups: adm, audio, bin, cdrom, daemon, dialout, disk, floppy,
+    #                games, kmem, lp, mail, man, root, sys, tape, tty, users, video
+
     - name: Do the thing
       filedrop:
+        owner_re:
+          f1: games
+          t1: lp
+        owner_exact:
+          /dumped/d2/f1: nobody
+          /dumped/d2/t1: bin
+        group_re:
+          f1: dialout
+          t1: games
+        group_exact:
+          /dumped/d2/f1: video
+          /dumped/d2/t1: tty
+
       # tulloh.filedrop.filedrop:
     #- name: Second call
       #filedrop:
