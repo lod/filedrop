@@ -1,27 +1,90 @@
 ---
 - name: Converge
   hosts: all
-  gather_facts: false
+  gather_facts: true
   #become: true
   tasks:
+#    - ansible.builtin.copy:
+#        src: dumped/d1/f1
+#        dest: /dumped/d1/f1
+#        owner: nobody
+#        group: dialout
+#    - ansible.builtin.copy:
+#        src: dumped/d1/f2
+#        dest: /dumped/d1/f2
+#        owner: nobody
+#        group: dialout
+#    - ansible.builtin.copy:
+#        src: dumped/d1/f2
+#        dest: /dumped/d1/f2
+#        owner: nobody
+#        group: dialout
+#    - debug:
+#        msg: BREAK BREAK BREAK
+#    - ansible.builtin.copy:
+#        src: dumped/d3/{{ item }}
+#        dest: /dumped/d3/{{ item }}
+#        owner: nobody
+#        group: dialout
+#      loop:
+#        - f1
+#        - f2
+#        - f3
+#    - debug:
+#        msg: BREAK BREAK BREAK
+#
+
+
     # Common users: root, bin, daemon, lp, sync, mail, games, nobody
     # Common groups: adm, audio, bin, cdrom, daemon, dialout, disk, floppy,
     #                games, kmem, lp, mail, man, root, sys, tape, tty, users, video
+    #
+    # Rough test outline:
+    #  etc/bob/ smith and smithy.j2 test file and template copies including contents
+    #
+    #  dumper/ d1,d2,d3 contain f1,f2,f3 and t1,t2,t3
+    #  These are used to test permissions regex and exact permission patterns
+    #
+    #  dumper/ d4,d5,d6 contain p1 and a mix of f1 and f2
+    #  These test directory inherit permissions, and the interaction with regex and exact
+
+    # TODO: Remove once we have proper directory permission support
+    - name: Set up testdir
+      file:
+        path: /dumped/d5
+        state: directory
+        owner: mail
+        group: kmem
+        
 
     - name: Do the thing
       filedrop:
-        owner_re:
-          f1: games
-          t1: lp
-        owner_exact:
-          /dumped/d2/f1: nobody
-          /dumped/d2/t1: bin
-        group_re:
-          f1: dialout
-          t1: games
-        group_exact:
-          /dumped/d2/f1: video
-          /dumped/d2/t1: tty
+        permissions_re:
+          f1:
+            owner: games
+            group: dialout
+            mode: '0600'
+          t1:
+            owner: lp
+            group: games
+            mode: '0600'
+          d3:
+            owner: sync
+            group: tape
+            mode: '0600'
+        permissions_exact:
+          /dumped/d2/f1:
+            owner: nobody
+            group: video
+            mode: '0600'
+          /dumped/d2/t1:
+            owner: bin
+            group: tty
+            mode: '0600'
+          /dumped/d5/p2:
+            owner: games
+            group: tty
+            mode: '0600'
 
       # tulloh.filedrop.filedrop:
     #- name: Second call

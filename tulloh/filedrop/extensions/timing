@@ -1,0 +1,14 @@
+-- all already copied - lots of changed, owner?
+setup 8s
+copy 1 3s
+copy 2 3s
+copy 3 3s
+copy 3x 9s (3s each)
+Big play 60+48-26= 82, 3x6+2+1=21, 3.9s/file (and 6 directories)  (21*3s=63s -- 6*3s=19s)
+
+Synchronize may be faster
+
+
+Initial run - transferring all files 55.76s  > initial_run_log
+Secord run - verifying existing files 65.10s > second_run_log
+Slower!!

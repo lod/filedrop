@@ -2,6 +2,7 @@
 
 import re
 import os
+import stat
 import typing
 from typing import Any
 
@@ -38,6 +39,19 @@ short_description: Drop a directory tree of files onto the remote system
 description:
     - Bob
     - Smith
+
+File permissions are ...
+1. The executable bit is taken from the file, this bit is maintained by git, this is the only permission information retained by git. The executable bit is set whenever the read bit is set.
+2. The permissions are all taken from the parent directory.
+3. The regex dictionary parameters owner_re, group_re and mode_re are matched against the full file path.  This allows broad matches.
+4. The exact dictionary parameters owner_exact, group_exact and mode_exact are matched against the full file path. This allows precise matches.
+
+TODO: Can I combine owner_re, group_re and mode_re?  permission_re and then a dict with owner/group/mode.  Or a composite like owner:group:mode ?
+
+
+
+
+
 options:
     owner_re:
         description:
@@ -65,6 +79,13 @@ options:
         - This is passed as a dictionary, the key is the file path, the value is the file group name or id.
         - The ansible.builtin.copy rules also apply, numeric groups are user IDs and not specifying a groups means that the current user default group is used or existing group if running as root.
         - It is recommended that you use this sparingly, using group_re will typically result in cleaner code. Extensive use also defeats the flexibility that this module is designed to provide.
+    ignore_file:
+        description:
+        - File name to ignore. This is mostly useful for creating empty directories without git cleaning them up.
+        - By default both .keep and _keep are ignored. This allows for a hidden or visible file based on your preferences.
+        - Setting this to "" will prevent any files from being ignored.
+
+
 """
 
 
@@ -85,17 +106,24 @@ class ActionModule(ActionBase):
         # So a playbook with two hosts and two identical task calls gets 4x inits and 4x runs
 
     def run(self, tmp=None, task_vars=None):
+
+        self._task_vars = task_vars if task_vars is not None else {}
+        if "ansible_facts" not in self._task_vars:
+            self._task_vars["ansible_facts"] = {}
+
+        # configure the module to perform the interpreter discovery and same in _task_vars
+        # otherwise it is done on every copy operation things get really slow
+        #self._configure_module("ansible.legacy.stat", self._task.args, self._task_vars)
+
         ret = super(ActionModule, self).run(tmp, task_vars)
         ret["tree"] = {}
 
-        self._task_vars = task_vars
-
         # source = self._task.args.get('src', None)
         source = "files"
-        owner_exact = self._task.args.get('owner_exact', {})
-        group_exact = self._task.args.get('group_exact', {})
-        owner_re = { re.compile(k):v for k,v in self._task.args.get('owner_re', {}).items()}
-        group_re = { re.compile(k):v for k,v in self._task.args.get('group_re', {}).items()}
+        permissions_exact = self._task.args.get('permissions_exact', {})
+        permissions_re = { re.compile(k):v for k,v in self._task.args.get('permissions_re', {}).items()}
+        ignore_file = self._task.args.get('ignore_file', None)
+
 
         try:
             source_path = self._find_needle("templates", source)
@@ -120,24 +148,31 @@ class ActionModule(ActionBase):
             str(d / extra) for d in set(base_searchpaths) for extra in ("", "templates")
         ]
 
+        # Add the root, mostly so we have the permissions recorded
+        ret["tree"]["/"] = self.process_dir(Path("/"), source_path)
         for root, dirs, files in source_path.walk(top_down=True, follow_symlinks=True):
-            base = "/" / root.relative_to(source_path)  # The remote representation
+            remote_base = "/" / root.relative_to(source_path)
+            directory_perms = ret["tree"][str(remote_base)]
             for dirname in dirs:
-                ret["tree"][str(base / dirname)] = self.process_dir(
-                    base / dirname, source_path
+                ret["tree"][str(remote_base / dirname)] = self.process_dir(
+                    remote_base / dirname, source_path
                 )
             for filename in files:
-                p = base / filename
-                if p.suffix == ".j2":
-                    owner = self.search_matches(p.with_suffix(""), owner_re, owner_exact)
-                    group = self.search_matches(p.with_suffix(""), group_re, group_exact)
+                p = remote_base / filename
+                if ignore_file == filename or (ignore_file is None and filename in ["_keep", ".keep"]):
+                    # TODO: Test specifying ignore_file and setting it to ""
+                    continue
+                local_path = root / filename
+                if filename[-3:] == ".j2":
+                    remote_path = (remote_base / filename).with_suffix("")
+                    permissions = self.build_permissions(local_path, remote_path, directory_perms, permissions_re, permissions_exact)
                     ret["tree"][str(p)] = self.process_template(
-                        p, source_path, template_searchpath, owner, group
+                        p, source_path, template_searchpath, permissions
                     )
                 else:
-                    owner = self.search_matches(p, owner_re, owner_exact)
-                    group = self.search_matches(p, group_re, group_exact)
-                    ret["tree"][str(p)] = self.process_file(p, source_path, owner, group)
+                    remote_path = remote_base / filename
+                    permissions = self.build_permissions(local_path, remote_path, directory_perms, permissions_re, permissions_exact)
+                    ret["tree"][str(p)] = self.process_file(p, source_path, permissions)
                 # TODO: Add .keep and _keep files, make it a customisable parameter
                 # TODO: Figure out how symlinks work, especially symlinks out of the tree
 
@@ -165,7 +200,7 @@ class ActionModule(ActionBase):
         }
 
     def process_template(
-        self, path: Path, local_root: Path, searchpath: list[str], owner: str|None, group: str|None
+            self, path: Path, local_root: Path, searchpath: list[str], permissions: dict[str,str]
     ) -> dict[str, str | int | bool]:
         Display().vvv(f"Processing template {local_root} {path}")
 
@@ -193,22 +228,22 @@ class ActionModule(ActionBase):
             result_file = local_tempdir / path.name
             result_file.write_text(resultant)
 
-            copy_return = self.copy_action(result_file, path.with_suffix(""), owner, group)
+            copy_return = self.copy_action(result_file, path.with_suffix(""), permissions)
         finally:
             Path(result_file).unlink()
             local_tempdir.rmdir()
 
         return copy_return
 
-    def process_file(self, path: Path, local_root: Path, owner: str|None, group: str|None) -> dict[str, str | int | bool]:
+    def process_file(self, path: Path, local_root: Path, permissions: dict[str,str]) -> dict[str, str | int | bool]:
         Display().vvv(f"Processing file {local_root} {path}")
 
         fullpath = local_root / path.relative_to("/")
 
-        return self.copy_action(fullpath, path, owner, group)
+        return self.copy_action(fullpath, path, permissions)
 
     def copy_action(
-            self, source_file: Path, dest_file: Path, owner: str|None = None, group: str|None = None
+            self, source_file: Path, dest_file: Path, permissions: dict[str,str] = {}
     ) -> dict[str, str | int | bool]:
         # call with ansible.legacy prefix to eliminate collisions with collections while still allowing local override
         copy_task = Task()
@@ -218,10 +253,12 @@ class ActionModule(ActionBase):
             "dest": str(dest_file),
             "follow": True,
         }
-        if owner is not None:
-            copy_task.args["owner"] = owner
-        if group is not None:
-            copy_task.args["group"] = group
+        if "owner" in permissions:
+            copy_task.args["owner"] = permissions["owner"]
+        if "group" in permissions:
+            copy_task.args["group"] = permissions["group"]
+        if "mode" in permissions:
+            copy_task.args["mode"] = permissions["mode"]
 
         # TODO: Pass through checkmode?
         # TODO: Pass through async?
@@ -234,7 +271,8 @@ class ActionModule(ActionBase):
             templar=self._templar,
             shared_loader_obj=self._shared_loader_obj,
         )
-        copy_return = copy_action.run(self._task_vars)
+        #Display().vvv(f"TASKVAR {self._task_vars}")
+        copy_return = copy_action.run(task_vars=self._task_vars)
 
         # Trim back result to the bits we actually care about
         return {
@@ -253,18 +291,46 @@ class ActionModule(ActionBase):
         }
 
     @staticmethod
-    def search_matches(test_path: Path, re_matches: dict[re.Pattern, str], exact_matches: dict[str,str]) -> str|None:
-        # exact matches overwrite regex matches
-        # later matches overwrite earlier matches (python keeps ordered dicts now)
+    def build_permissions(local_path: Path, remote_path: Path, directory_perms: dict[str,str|int], re_matches: dict[re.Pattern, str], exact_matches: dict[str,str]) -> dict[str,str]:
+        # In increasing priority:
+        #   1. Directory
+        #   2. Regex
+        #   3. Exact
+        #
+        # Matches can be partial, mode, owner and group can come from three different levels
+        # Executable bit comes from the file itself (host side)
+        # Later matches of the same priority overwrite earlier matches (dicts are ordered)
 
-        match = None  # default
+        # TODO: Handle files not being found some some reason - shouldn't happen
+        # TODO: Handle templates, want no j2 for exact but j2 for exec bit
+
+        # TODO: Ensure and test that dicts are ordered
+
+        level1 = directory_perms
+
+        level2 = {}  # default
         for reg, potential in re_matches.items():
-            if reg.search(str(test_path)) is not None:
-                match = potential
+            if reg.search(str(remote_path)) is not None:
+                level2 = potential
+
+        level3 = {}  # default
         for exact, potential in exact_matches.items():
-            if exact == str(test_path):
-                match = potential
-        return match
+            if exact == str(remote_path):
+                level3 = potential
+
+        blend = {**level1, **level2, **level3}
+
+        # Update the mode executable bit, based on the owner bit of the file
+        exec_bit = local_path.stat().st_mode & stat.S_IXUSR > 0
+        mode_d = int(blend["mode"],8)
+        # Read bits are always two higher than the executable bit
+        new_mode_d = mode_d | (mode_d >> 2 & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH))
+        blend["mode"] = "0" + oct(new_mode_d)[2:]  # Drop the 0o, but want a leading 0
+
+        # TODO: Test directory perms, requires setting directory perms
+        # TODO: Test executable bits
+
+        return {k:blend[k] for k in ("owner", "group", "mode")}
 
     def _find_needle(self, dirname: str, needle: str) -> Path:
         """
