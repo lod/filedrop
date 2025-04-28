@@ -109,6 +109,7 @@ options:
 # TODO: List unmanaged files in managed directory
 # TODO: Option - delete unmanaged files in managed directory
 
+
 class ActionModule(ActionBase):
     def __init__(
         self,
@@ -137,22 +138,34 @@ class ActionModule(ActionBase):
         ret = super(ActionModule, self).run(tmp, task_vars)
         ret["tree"] = {}
 
-        # source = self._task.args.get('src', None)
-        source = "files"
-        permissions_exact = self._task.args.get("permissions_exact", {})
-        permissions_re = {
+        source = self._task.args.get("src", "files")
+        self.permissions_exact = self._task.args.get("permissions_exact", {})
+        self.permissions_re = {
             re.compile(k): v
             for k, v in self._task.args.get("permissions_re", {}).items()
         }
-        ignore_file = self._task.args.get("ignore_file", None)
-        permission_files = [
-            ".permissions",
-            "_permissions",
-            ".permissions.yml",
-            "_permissions.yml",
-        ]
+        ignore_files = self._task.args.get("ignore_file", ["_keep", ".keep"])
+        permission_files = self._task.args.get(
+            "directory_permission_file",
+            [
+                ".permissions",
+                "_permissions",
+                ".permissions.yml",
+                "_permissions.yml",
+            ],
+        )
+
+        # task arg is list, dict, or ansible.parsing.yaml.objects.AnsibleUnicode
+        # We support single or multimember options for directory_permission_files and ignore_file
+        self.ignore_files = (
+            ignore_files if type(ignore_files) is list else [ignore_files]
+        )
+        self.permission_files = (
+            permission_files if type(permission_files) is list else [permission_files]
+        )
 
         try:
+            # TODO: is templates correct, should we be looking inside templates directories?
             source_path = self._find_needle("templates", source)
         except AnsibleError as e:
             raise AnsibleActionFail(to_text(e))
@@ -164,15 +177,14 @@ class ActionModule(ActionBase):
         # That's all out original search paths, plus their template directories
         # We don't want to search into our filedrop tree, those are for dropping not including
         base_searchpaths = [
-            Path(d)
-            for d in (
-                *task_vars.get("ansible_search_path", []),
-                self._loader._basedir,
-                source_path.resolve().parent,
-            )
+            *task_vars.get("ansible_search_path", []),
+            self._loader._basedir,
+            source_path.resolve().parent,
         ]
         template_searchpath = [
-            str(d / extra) for d in set(base_searchpaths) for extra in ("", "templates")
+            str(Path(d) / extra)
+            for d in set(base_searchpaths)
+            for extra in ("", "templates")
         ]
 
         # Add the root, mostly so we have the permissions recorded
@@ -188,15 +200,11 @@ class ActionModule(ActionBase):
                     local_path,
                     remote_path,
                     directory_perms,
-                    permissions_re,
-                    permissions_exact,
                 ):
                     permissions = self.build_permissions(
                         local_path,
                         remote_path,
                         directory_perms,
-                        permissions_re,
-                        permissions_exact,
                     )
                 else:
                     permissions = {}  # We don't manage the permissions
@@ -204,9 +212,7 @@ class ActionModule(ActionBase):
                     remote_path, source_path, permissions
                 )
             for filename in files:
-                if ignore_file == filename or (
-                    ignore_file is None and filename in ["_keep", ".keep"]
-                ) or filename in permission_files:
+                if filename in [*self.ignore_files, *self.permission_files]:
                     # TODO: Test specifying ignore_file and setting it to ""
                     continue
                 local_path = root / filename
@@ -216,8 +222,6 @@ class ActionModule(ActionBase):
                         local_path,
                         remote_path,
                         directory_perms,
-                        permissions_re,
-                        permissions_exact,
                     )
                     ret["tree"][str(remote_path)] = self.process_template(
                         local_path, remote_path, template_searchpath, permissions
@@ -228,8 +232,6 @@ class ActionModule(ActionBase):
                         local_path,
                         remote_path,
                         directory_perms,
-                        permissions_re,
-                        permissions_exact,
                     )
                     ret["tree"][str(remote_path)] = self.process_file(
                         local_path, remote_path, permissions
@@ -243,10 +245,11 @@ class ActionModule(ActionBase):
 
         return ret
 
-    def process_dir(self, path: Path, local_root: Path, permissions: dict[str,str]) -> dict[str, str | int | bool]:
-        # TODO: Want a way to set permissions
+    def process_dir(
+        self, path: Path, local_root: Path, permissions: dict[str, str]
+    ) -> dict[str, str | int | bool]:
         # TODO: Can optimize by sending bulk requests?  Do I need by own module for the other side?
-        module_args={"path": str(path), "state": "directory"}
+        module_args = {"path": str(path), "state": "directory"}
         if "owner" in permissions:
             module_args["owner"] = permissions["owner"]
         if "group" in permissions:
@@ -356,13 +359,11 @@ class ActionModule(ActionBase):
             )
         }
 
-    @staticmethod
     def build_permissions(
+        self,
         local_path: Path,
         remote_path: Path,
         directory_perms: dict[str, str | int],
-        re_matches: dict[re.Pattern, str],
-        exact_matches: dict[str, str],
     ) -> dict[str, str]:
         # In increasing priority:
         #   1. Directory
@@ -375,7 +376,6 @@ class ActionModule(ActionBase):
         # Later matches of the same priority overwrite earlier matches (dicts are ordered)
 
         # TODO: Handle files not being found some some reason - shouldn't happen
-        # TODO: Handle templates, want no j2 for exact but j2 for exec bit
 
         # We make directories end in a / for clearer match differentiation
         remote_path_str = str(remote_path) + "/" * local_path.is_dir()
@@ -383,26 +383,20 @@ class ActionModule(ActionBase):
         level1 = directory_perms
 
         level2 = {}
-        for reg, potential in re_matches.items():
+        for reg, potential in self.permissions_re.items():
             if reg.search(remote_path_str) is not None:
                 level2 = potential
 
         level3 = {}
-        permission_files = [
-            ".permissions",
-            "_permissions",
-            ".permissions.yml",
-            "_permissions.yml",
-        ]
         if local_path.is_dir():
             for child in local_path.iterdir():
-                if child.name in permission_files and child.is_file():
+                if child.name in self.permission_files and child.is_file():
                     from_permfile = from_yaml(child.read_text())
                     # Empty files return None
                     level3 = from_permfile if from_permfile is not None else {}
 
         level4 = {}
-        for exact, potential in exact_matches.items():
+        for exact, potential in self.permissions_exact.items():
             if exact == remote_path_str:
                 level4 = potential
 
@@ -416,7 +410,9 @@ class ActionModule(ActionBase):
         new_mode_d = mode_d & ~exec_bits | (mode_d >> 2 & exec_bits * want_exec)
         blend["mode"] = "0" + oct(new_mode_d)[2:]  # Drop the 0o, but want a leading 0
 
-        Display().vvv(f"Permission construction {blend} from {level1} {level2} {level3} {level4} exec={want_exec}")
+        Display().vvv(
+            f"Permission construction {blend} from {level1} {level2} {level3} {level4} exec={want_exec}"
+        )
         return {k: blend[k] for k in ("owner", "group", "mode")}
 
     def is_managed_directory(
@@ -424,31 +420,24 @@ class ActionModule(ActionBase):
         local_path: Path,
         remote_path: Path,
         parent_directory_perms: dict[str, str | int],
-        re_matches: dict[re.Pattern, str],
-        exact_matches: dict[str, str],
     ) -> bool:
         # 1. If we have a directory_permission_file
-        # TODO: Support configurable directory_permission_file
-        permission_files = [
-            ".permissions",
-            "_permissions",
-            ".permissions.yml",
-            "_permissions.yml",
-        ]
         for child in local_path.iterdir():
-            if child.name in permission_files and child.is_file():
+            if child.name in self.permission_files and child.is_file():
                 Display().vvv(f"Managed folder: {child.name} exists")
                 return True
 
         # 2. If directory expression matches, directory expressions contain a /
-        for reg, _perms in re_matches.items():
-            Display().vvv(f"folder testing regex {reg.pattern} - {'/' in reg.pattern} {str(remote_path) + '/'} {reg.search(str(remote_path) + '/')}")
+        for reg, _perms in self.permissions_re.items():
+            Display().vvv(
+                f"folder testing regex {reg.pattern} - {'/' in reg.pattern} {str(remote_path) + '/'} {reg.search(str(remote_path) + '/')}"
+            )
             if "/" in reg.pattern and reg.search(str(remote_path) + "/") is not None:
                 Display().vvv(f"Managed folder: regex {reg.pattern} matches")
                 return True
 
         # 3. If exact directory expression matches
-        for exact, _perms in exact_matches.items():
+        for exact, _perms in self.permissions_exact.items():
             if "/" in exact and exact == str(remote_path) + "/":
                 Display().vvv(f"Managed folder: {exact} matches")
                 return True
@@ -456,17 +445,10 @@ class ActionModule(ActionBase):
         # 4. If the remote folder doesn't exist
         # We need to test for this, otherwise we don't know if we should pass permission options
         # Do this test last because it's slow
-        return not self._execute_remote_stat(str(remote_path), self._task_vars, follow=True)["exists"]
+        return not self._execute_remote_stat(
+            str(remote_path), self._task_vars, follow=True
+        )["exists"]
 
-    #
-    # A managed folder follows similar permission rules to files.
-    #
-    # 1. The permissions are all taken from the parent directory.
-    # 2. The permissions_re regex keys are matched against the path.  Note all keys are matched, not just ones that end in /.
-    # 3. The directory_permission_file may contain yaml definitions of the owner, group or mode.
-    # 4. Keys from permission_exact are matched against the path.
-    #
-    #
     def _find_needle(self, dirname: str, needle: str) -> Path:
         """
         find a needle in haystack of paths, optionally using 'dirname' as a subdir.
