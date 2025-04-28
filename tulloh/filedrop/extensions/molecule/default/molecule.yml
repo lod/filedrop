@@ -5,9 +5,13 @@ dependency:
     role-file: requirements.yml
     requirements-file: requirements.yml
 driver:
-  name: podman
+  # Podman driver doesn't support pipelining, which we want to focus on
+  name: docker
 provisioner:
   name: ansible
+  config_options:
+    defaults:
+      pipelining: True
 verifier:
   name: ansible
 platforms:

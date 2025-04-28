@@ -48,15 +48,6 @@
     #  dumper/ d4,d5,d6 contain p1 and a mix of f1 and f2
     #  These test directory inherit permissions, and the interaction with regex and exact
 
-    # TODO: Remove once we have proper directory permission support
-    - name: Set up testdir
-      file:
-        path: /dumped/d5
-        state: directory
-        owner: mail
-        group: kmem
-        
-
     - name: Do the thing
       filedrop:
         permissions_re:
@@ -64,6 +55,8 @@
             owner: games
             group: dialout
             mode: '0600'
+          f2:
+            mode: '0467'
           t1:
             owner: lp
             group: games
@@ -72,6 +65,10 @@
             owner: sync
             group: tape
             mode: '0600'
+          d41/$:
+            group: video
+          d4111/layer2:
+            owner: root
         permissions_exact:
           /dumped/d2/f1:
             owner: nobody
@@ -85,6 +82,12 @@
             owner: games
             group: tty
             mode: '0600'
+          /dumped/d4/d41/d411/:
+            mode: '0046'
+          /dumped/d4/d41/d411/d4111/layer3:
+            owner: nobody
+          /dumped/d4/d41/d411/d4111/layer21:
+            group: adm
 
       # tulloh.filedrop.filedrop:
     #- name: Second call

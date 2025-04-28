@@ -12,3 +12,12 @@ Synchronize may be faster
 Initial run - transferring all files 55.76s  > initial_run_log
 Secord run - verifying existing files 65.10s > second_run_log
 Slower!!
+
+Podman container system doesn't support pipelining.
+Which is a shame, it's something we really want to test and optimise for
+Docker container link does support pipelining, worth it to switch
+
+With docker installed pipelining is enabled
+Initial run, 34.94s (60% faster than 55.76s)  - may be better, I think I added some files
+Second run (verify, no changes) 37.13s (57% faster than 65.10s)
+Second pass is still slower than initial run though
