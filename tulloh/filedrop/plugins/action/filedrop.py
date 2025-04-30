@@ -91,8 +91,6 @@ class Permissions:
     mode: str
 
 
-# TODO: Test async, somebody might be silly enough to try it
-
 # TODO: List unmanaged files in managed directory
 # TODO: Option - delete unmanaged files in managed directory
 
@@ -102,6 +100,13 @@ class Permissions:
 
 
 class ActionModule(ActionBase):
+    _supports_async = False  # Make the default explicit
+    # It would be nice to support async but I'm not sure how to do it
+    # all the examples seem to be single commands, we need to present
+    # a single ansible_job_id in the output, unsure how to combine them.
+    # The copy action doesn't support async, so it's probably not a huge benefit.
+    # The magic file seems to be modules/async_wrapper.py
+
     def __init__(
         self,
         task: Task,
@@ -238,7 +243,7 @@ class ActionModule(ActionBase):
                     )
                 # TODO: Figure out how symlinks work, especially symlinks out of the tree
 
-        Display().vvv("Raw output tree {tree}")
+        Display().vvv(f"Raw output tree {tree}")
         # Process all the return details to build out return tree
         tree_elements = [
             "path",
@@ -350,6 +355,7 @@ class ActionModule(ActionBase):
             "follow": True,
             **asdict(permissions),
         }
+        copy_task.async_val=False  # Not supported
 
         copy_action = self._shared_loader_obj.action_loader.get(
             "ansible.legacy.copy",

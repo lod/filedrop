@@ -282,7 +282,56 @@
           - (alt_list_stat.results | selectattr("item", "eq", "_permissions"))[0].stat.pw_name == "bin"
           - (alt_list_stat.results | selectattr("item", "eq", "_permissions"))[0].stat.gr_name == "audio"
           - (alt_list_stat.results | selectattr("item", "eq", "_permissions"))[0].stat.mode == "0644"
- 
-    # TODO: Parameter changes:
-    #   Change source directory - walk the option tree?
-    #   async
+
+    # async tests, just want to ensure nothing weird happens
+    # async isn't supported - blocked
+#    - name: Delete dumped directory - start from blank slate
+#      ansible.builtin.file:
+#        state: absent
+#        path: /dumped
+#    - name: filedrop with timeout
+#      filedrop:
+#      async: 45
+#      poll: 5  # not async - blocking
+#
+#    - name: Delete dumped and alternative
+#      ansible.builtin.file:
+#        state: absent
+#        path: /{{ item }}
+#      loop:
+#        - dumped
+#        - alternative
+#    - name: async filedrop - parallel
+#      filedrop:
+#        src: "{{ item }}"
+#      async: 45
+#      poll: 0  # async - parallel
+#      loop:
+#        - files
+#        - custom_tree
+#      register: parallel_drop
+#    - name: Check on an async task
+#      ansible.builtin.async_status:
+#        jid: "{{ parallel_drop.ansible_job_id }}"
+#      register: job_result
+#      until: job_result.finished
+#      retries: 100
+#      delay: 10
+#
+    - block:
+        - name: async filedrop should fail
+          filedrop:
+          async: 45
+          poll: 5  # not async - blocking
+          register: async_fail
+      rescue:
+        - ansible.builtin.debug:
+            var: async_fail
+        - name: Verify that async is blocked
+          ansible.builtin.assert:
+            that:
+              - async_fail.failed == true
+              - async_fail.msg == "This action (filedrop) does not support async."
+
+        # TODO: Parameter changes:
+        #   Change source directory - walk the option tree?
