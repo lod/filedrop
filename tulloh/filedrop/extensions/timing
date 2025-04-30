@@ -21,3 +21,62 @@ With docker installed pipelining is enabled
 Initial run, 34.94s (60% faster than 55.76s)  - may be better, I think I added some files
 Second run (verify, no changes) 37.13s (57% faster than 65.10s)
 Second pass is still slower than initial run though
+
+
+Details of copy action creating a new file - in pipeline mode
+
+remote_src flag is set if copying remote to remote, so no transfer is required
+ - not us
+
+Call action.copy.remote_expand_user()
+  - noop when destination doesn't start with ~
+
+Call action.copy._copy_file()
+	action.base._execute_remote_stat()
+		action.base._execute_module('ansible.legacy.stat')
+			As tmpdir == None:
+				action.base._make_tmp_path()
+					[1] self._connection._shell._generate_temp_dir_name()
+					[2] self._connection._shell.mkdtemp()
+			action.base._low_level_execute_command()
+				[3] self._connection.exec_command()
+	action.base._get_diff_data()
+		action.base._execute_module('ansible.legacy.file')
+			action.base._low_level_execute_command()
+				[4] self._connection.exec_command()
+	action.base._transfer_file()
+		[5] self._connection.put_file
+	action.base._fixup_perms2()
+		As we aren't using become (the using become path is worse)
+			action.base._remote_chmod()
+				action.base._low_level_execute_command
+					[6] self._connection.exec_command()
+	action.base._execute_module('ansible.legacy.copy')
+		action.base._low_level_execute_command()
+			[7] self._connection.exec_command()
+	action.base._remove_tmp_path()
+		action.base._low_level_execute_command()
+			[8] self._connection.exec_command()
+		
+
+			
+Notes:
+	if the file exists we also execute ansible.legacy.slurp for the diff
+	running under become skips [6] because we don't need to loosen permissions
+	there's an undocumented raw option for the copy action, different process
+		transfer_file overwrites the existing file directly, no temporary file
+		the temporary permission fixup isn't required, so chmod [6] is not run
+		no remote copy required, so the copy module [7] is not run
+
+
+Call action.base._remove_tmp_path()
+
+Log of transferring a file - all connection actions:
+1.  EXEC ['/usr/bin/docker', b'exec', b'-i', 'bookworm', '/bin/sh', '-c', "/bin/sh -c 'echo ~ && sleep 0'"]
+2.  EXEC ['/usr/bin/docker', b'exec', b'-i', 'bookworm', '/bin/sh', '-c', '/bin/sh -c \'( umask 77 && mkdir -p "` echo /root/.ansible/tmp `"&& mkdir "` echo /root/.ansible/tmp/ansible-tmp-1745974740.930742-828596-141624236415975 `" && echo ansible-tmp-1745974740.930742-828596-141624236415975="` echo /root/.ansible/tmp/ansible-tmp-1745974740.930742-828596-141624236415975 `" ) && sleep 0\'']
+3.  EXEC ['/usr/bin/docker', b'exec', b'-i', 'bookworm', '/bin/sh', '-c', "/bin/sh -c '/usr/local/bin/python3.13 && sleep 0'"]
+4.  EXEC ['/usr/bin/docker', b'exec', b'-i', 'bookworm', '/bin/sh', '-c', "/bin/sh -c '/usr/local/bin/python3.13 && sleep 0'"]
+5.  PUT /home/lod/projects/filedrop2/tulloh/filedrop/extensions/molecule/options/files/dumped/f2 TO /root/.ansible/tmp/ansible-tmp-1745974740.930742-828596-141624236415975/.source
+6.  EXEC ['/usr/bin/docker', b'exec', b'-i', 'bookworm', '/bin/sh', '-c', "/bin/sh -c 'chmod u+x /root/.ansible/tmp/ansible-tmp-1745974740.930742-828596-141624236415975/ /root/.ansible/tmp/ansible-tmp-1745974740.930742-828596-141624236415975/.source && sleep 0'"]
+7.  EXEC ['/usr/bin/docker', b'exec', b'-i', 'bookworm', '/bin/sh', '-c', "/bin/sh -c '/usr/local/bin/python3.13 && sleep 0'"]
+8.  EXEC ['/usr/bin/docker', b'exec', b'-i', 'bookworm', '/bin/sh', '-c', "/bin/sh -c 'rm -f -r /root/.ansible/tmp/ansible-tmp-1745974740.930742-828596-141624236415975/ > /dev/null 2>&1 && sleep 0'"]

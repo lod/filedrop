@@ -108,7 +108,6 @@
       check_mode: false
       diff: true
       register: f2_change
-
     - name: Test the check/change/check results
       ansible.builtin.assert:
         that:
@@ -133,13 +132,157 @@
           # Actual change should be identical
           - f2_change.diff == f2_prep.diff
 
+    - name: Delete alternative directory - start from blank slate
+      ansible.builtin.file:
+        state: absent
+        path: /alternative
+    - name: Transfer an alternative directory
+      filedrop:
+        src: custom_tree
+        ignore_file: 
+        directory_management_file:
+    - name: Check on the transferred files
+      ansible.builtin.stat:
+        path: "/alternative/{{ item }}"
+      loop:
+        - ""  # The directory
+        - alternative_file
+        - .keep
+        - _keep
+        - .permissions
+        - _permissions
+        - .permissions.yml
+        - _permissions.yml
+      register: alt_src_stat
+    - ansible.builtin.debug:
+        var: alt_src_stat
+    - name: Test the alternative tree results
+      ansible.builtin.assert:
+        that:
+          - (alt_src_stat.results | selectattr("item", "eq", "alternative_file"))[0].stat.exists == true
+          - (alt_src_stat.results | selectattr("item", "eq", ".keep"))[0].stat.exists == true
+          - (alt_src_stat.results | selectattr("item", "eq", "_keep"))[0].stat.exists == true
+          - (alt_src_stat.results | selectattr("item", "eq", ".permissions"))[0].stat.exists == true
+          - (alt_src_stat.results | selectattr("item", "eq", ".permissions.yml"))[0].stat.exists == true
+          - (alt_src_stat.results | selectattr("item", "eq", "_permissions"))[0].stat.exists == true
+          - (alt_src_stat.results | selectattr("item", "eq", "_permissions.yml"))[0].stat.exists == true
+          # Check some permissions, because we intend to change them
+          - (alt_src_stat.results | selectattr("item", "eq", ""))[0].stat.pw_name == "root"
+          - (alt_src_stat.results | selectattr("item", "eq", ""))[0].stat.gr_name == "root"
+          - (alt_src_stat.results | selectattr("item", "eq", ""))[0].stat.mode == "0755"
+          - (alt_src_stat.results | selectattr("item", "eq", "_permissions.yml"))[0].stat.pw_name == "root"
+          - (alt_src_stat.results | selectattr("item", "eq", "_permissions.yml"))[0].stat.gr_name == "root"
+          - (alt_src_stat.results | selectattr("item", "eq", "_permissions.yml"))[0].stat.mode == "0644"
+
+    - name: Delete all the files, keep the directory
+      ansible.builtin.file:
+        state: absent
+        path: "/alternative/{{ item }}"
+      loop:
+        - alternative_file
+        - .keep
+        - _keep
+        - .permissions
+        - _permissions
+        - .permissions.yml
+        # - _permissions.yml  # Don't delete this one, look for permission switch
+    - name: Transfer the twisted alternative
+      filedrop:
+        src: custom_tree
+        ignore_file: _permissions
+        directory_management_file: alternative_file # sets lp:mail:0006
+      register: twisted_transfer
+    - name: Check on the transferred files
+      ansible.builtin.stat:
+        path: "/alternative/{{ item }}"
+      loop:
+        - ""  # The directory
+        - alternative_file
+        - .keep
+        - _keep
+        - .permissions
+        - _permissions
+        - .permissions.yml
+        - _permissions.yml
+      register: alt_twisted_stat
+    - ansible.builtin.debug:
+        var: alt_twisted_stat
+    - name: Test the twisted tree results
+      ansible.builtin.assert:
+        that:
+          - (alt_twisted_stat.results | selectattr("item", "eq", "alternative_file"))[0].stat.exists == false
+          - (alt_twisted_stat.results | selectattr("item", "eq", ".keep"))[0].stat.exists == true
+          - (alt_twisted_stat.results | selectattr("item", "eq", "_keep"))[0].stat.exists == true
+          - (alt_twisted_stat.results | selectattr("item", "eq", ".permissions"))[0].stat.exists == true
+          - (alt_twisted_stat.results | selectattr("item", "eq", ".permissions.yml"))[0].stat.exists == true
+          - (alt_twisted_stat.results | selectattr("item", "eq", "_permissions"))[0].stat.exists == false
+          - (alt_twisted_stat.results | selectattr("item", "eq", "_permissions.yml"))[0].stat.exists == true
+          # Should have picked up permissions from alternative_file
+          - (alt_twisted_stat.results | selectattr("item", "eq", ""))[0].stat.pw_name == "lp"
+          - (alt_twisted_stat.results | selectattr("item", "eq", ""))[0].stat.gr_name == "mail"
+          - (alt_twisted_stat.results | selectattr("item", "eq", ""))[0].stat.mode == "0007"
+          - (alt_twisted_stat.results | selectattr("item", "eq", "_permissions.yml"))[0].stat.pw_name == "lp"
+          - (alt_twisted_stat.results | selectattr("item", "eq", "_permissions.yml"))[0].stat.gr_name == "mail"
+          - (alt_twisted_stat.results | selectattr("item", "eq", "_permissions.yml"))[0].stat.mode == "0006"
+          # Changing permissions should register as changed
+          - twisted_transfer.tree["/alternative"].changed == true
+          - twisted_transfer.tree["/alternative/_permissions.yml"].changed == true
+
+    - name: Delete all the files, keep the directory
+      ansible.builtin.file:
+        state: absent
+        path: "/alternative/{{ item }}"
+      loop:
+        - alternative_file
+        - .keep
+        - _keep
+        #- .permissions  # Don't delete this one, look for permission switch
+        - _permissions
+        - .permissions.yml
+        - _permissions.yml
+    - name: Transfer the twisted alternative
+      filedrop:
+        src: custom_tree
+        ignore_file:
+          - alternative_file
+          - .permissions  # Already exists, prevent permission switch
+        directory_management_file:
+          - .keep  # sets owner=bin
+          - .permissions.yml  # sets group=audio, via json (super twisted)
+    - name: Check on the transferred files
+      ansible.builtin.stat:
+        path: "/alternative/{{ item }}"
+      loop:
+        - ""  # The directory
+        - alternative_file
+        - .keep
+        - _keep
+        - .permissions
+        - _permissions
+        - .permissions.yml
+        - _permissions.yml
+      register: alt_list_stat
+    - name: Test the list option tree results
+      ansible.builtin.assert:
+        that:
+          - (alt_list_stat.results | selectattr("item", "eq", "alternative_file"))[0].stat.exists == false
+          - (alt_list_stat.results | selectattr("item", "eq", ".keep"))[0].stat.exists == false
+          - (alt_list_stat.results | selectattr("item", "eq", "_keep"))[0].stat.exists == true
+          - (alt_list_stat.results | selectattr("item", "eq", ".permissions"))[0].stat.exists == true
+          - (alt_list_stat.results | selectattr("item", "eq", ".permissions.yml"))[0].stat.exists == false
+          - (alt_list_stat.results | selectattr("item", "eq", "_permissions"))[0].stat.exists == true
+          - (alt_list_stat.results | selectattr("item", "eq", "_permissions.yml"))[0].stat.exists == true
+          # Should have picked up permissions from alternative_file
+          - (alt_list_stat.results | selectattr("item", "eq", ""))[0].stat.pw_name == "bin"
+          - (alt_list_stat.results | selectattr("item", "eq", ""))[0].stat.gr_name == "audio"
+          - (alt_list_stat.results | selectattr("item", "eq", ""))[0].stat.mode == "0755"
+          - (alt_list_stat.results | selectattr("item", "eq", ".permissions"))[0].stat.pw_name == "lp"
+          - (alt_list_stat.results | selectattr("item", "eq", ".permissions"))[0].stat.gr_name == "mail"
+          - (alt_list_stat.results | selectattr("item", "eq", ".permissions"))[0].stat.mode == "0006"
+          - (alt_list_stat.results | selectattr("item", "eq", "_permissions"))[0].stat.pw_name == "bin"
+          - (alt_list_stat.results | selectattr("item", "eq", "_permissions"))[0].stat.gr_name == "audio"
+          - (alt_list_stat.results | selectattr("item", "eq", "_permissions"))[0].stat.mode == "0644"
+ 
     # TODO: Parameter changes:
-    #   Change source directory
-    #   Change source directory - walk the tree?
-    #   Set ignore_file
-    #   Set ignore_file to list
-    #   Set ignore_file to ""
-    #   Set directory_permissions file
-    #   Set directory_permissions file to list
-    #   Set directory_permissions file to ""
+    #   Change source directory - walk the option tree?
     #   async

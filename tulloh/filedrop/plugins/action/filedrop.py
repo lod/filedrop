@@ -5,6 +5,7 @@ import os
 import stat
 import typing
 from typing import Any
+from dataclasses import dataclass
 
 from ansible.plugins.action import ActionBase
 from ansible.utils.display import Display
@@ -51,7 +52,7 @@ Directory permissions follow the same pattern as files but are a little more com
 
 The following process is used to determine if a folder should be managed.
 
-1. Folders in the filedrop tree may contain a file, one of .permissions, _permissions, .permissions.yml, _permissions.yml (this is the default set, it is configurable via the directory_permission_file option).  If this file exists then the directory is controlled. This is the recommended pattern to use.
+1. Folders in the filedrop tree may contain a file, one of .permissions, _permissions, .permissions.yml, _permissions.yml (this is the default set, it is configurable via the directory_management_file option).  If this file exists then the directory is controlled. This is the recommended pattern to use.
 2. If a permissions_re expression contains a / then it is considered a directory targeting regular expression.  For matching all directories end in a / so they can be differentiated, for example /etc/. If a directory targeting regular expression matches the directory then it is managed.  This does not have to match at the end, for example "/etc/" will match /etc/ and all folders within /etc/, more specific regex such as "/etc/$" can be used if this is undesirable.  (NOTE: Would contains / be better?)
 3. If a permissions_exact key ends in / then it is considered a directory targeting key, any match will be considered managed.
 4. If the folder does not yet exist on the remote system it will be treated as managed for the creation.  Once created it will not be managed.
@@ -60,7 +61,7 @@ A managed folder follows similar permission rules to files.
 
 1. The permissions are all taken from the parent directory.
 2. The permissions_re regex keys are matched against the path.  Note all keys are matched, not just ones that end in /.
-3. The directory_permission_file may contain yaml definitions of the owner, group or mode.
+3. The directory_management_file may contain yaml definitions of the owner, group or mode.
 4. Keys from permission_exact are matched against the path.
 
 
@@ -88,26 +89,34 @@ options:
         - File name to ignore. This is mostly useful for creating empty directories without git cleaning them up.
         - This can be either a filename string or a list of filename strings.
         - By default both .keep and _keep are ignored. This allows for a hidden or visible file based on your preferences.
-        - Setting this to "" will prevent any files from being ignored.
-    directory_permission_file:
+        - Setting this to blank will prevent any files from being ignored.
+    directory_management_file:
         description:
         - File name which specifies that the containing directory is managed. 
         - The file may specify the owner, group, or mode permissions in the contents.  This can be either a yaml or json format.
         - This can be either a filename string or a list of filename strings.
-        - Setting this to "" will prevent the directory_permission_file functionality.
+        - Setting this to blank will prevent the directory_management_file functionality.
 
 Note that in the event of a failure processing will continue with the rest of the tree.
 The final status will be failure and the msg will reference all the failed elements.
 
 """
 
+@dataclass
+class Permissions:
+    owner: str
+    group: str
+    mode: str
+
 # TODO: Test async, somebody might be silly enough to try it
 
 # TODO: List unmanaged files in managed directory
 # TODO: Option - delete unmanaged files in managed directory
 
-# TODO: It looks like directory_permission_file can also be json, from https://github.com/ansible/ansible/blob/aab732cb826db93265b03ca6f6f9eb1a03746975/lib/ansible/parsing/utils/yaml.py#L22
+# TODO: It looks like directory_management_file can also be json, from https://github.com/ansible/ansible/blob/aab732cb826db93265b03ca6f6f9eb1a03746975/lib/ansible/parsing/utils/yaml.py#L22
 
+# TODO: The whole notify thing
+# TODO: Drop the exact options, just use exact regex
 
 class ActionModule(ActionBase):
     def __init__(
@@ -144,7 +153,7 @@ class ActionModule(ActionBase):
         }
         ignore_files = self._task.args.get("ignore_file", ["_keep", ".keep"])
         permission_files = self._task.args.get(
-            "directory_permission_file",
+            "directory_management_file",
             [
                 ".permissions",
                 "_permissions",
@@ -215,8 +224,9 @@ class ActionModule(ActionBase):
                 tree[str(remote_path)]["managed_directory"] = permissions == {}
             for filename in files:
                 if filename in [*self.ignore_files, *self.permission_files]:
-                    # TODO: Test specifying ignore_file and setting it to ""
+                    Display().vvv(f"Ignoring file {remote_base / filename}")
                     continue
+                Display().vvv(f"Processing file {remote_base / filename}")
                 local_path = root / filename
                 if filename[-3:] == ".j2":
                     remote_path = (remote_base / filename).with_suffix("")
@@ -306,8 +316,6 @@ class ActionModule(ActionBase):
     ) -> dict[str, str | int | bool]:
         # remote_path doesn't include the .j2, local_path does
 
-        Display().vvv(f"Processing template {remote_path}")
-
         # Template process is based on the standard template action
         # Basic process is to read the file, render the template, write to a temporary file, and transfer
 
@@ -338,8 +346,6 @@ class ActionModule(ActionBase):
     def process_file(
         self, local_path: Path, remote_path: Path, permissions: dict[str, str]
     ) -> dict[str, str | int | bool]:
-        Display().vvv(f"Processing file {remote_path}")
-
         return self.copy_action(local_path, remote_path, permissions)
 
     def copy_action(
@@ -382,7 +388,7 @@ class ActionModule(ActionBase):
         # In increasing priority:
         #   1. Directory
         #   2. Regex
-        #   3. For directories only - directory_permission_file
+        #   3. For directories only - directory_management_file
         #   4. Exact
         #
         # Matches can be partial, mode, owner and group can come from three different levels
@@ -407,7 +413,8 @@ class ActionModule(ActionBase):
                 if child.name in self.permission_files and child.is_file():
                     from_permfile = from_yaml(child.read_text())
                     # Empty files return None
-                    level3 = from_permfile if from_permfile is not None else {}
+                    if from_permfile is not None:
+                        level3.update(from_permfile)  # Support multiple permission_files
 
         level4 = {}
         for exact, potential in self.permissions_exact.items():
@@ -415,12 +422,15 @@ class ActionModule(ActionBase):
                 level4 = potential
 
         blend = {**level1, **level2, **level3, **level4}
+        Display().vvv(
+            f"PRE-EXEC Permission construction {blend} from {level1} {level2} {level3} {level4}"
+        )
 
         # Set the mode executable bits, based on the owner bit of the file
         if "mode" in blend:
             want_exec = local_path.stat().st_mode & stat.S_IXUSR > 0
             exec_bits = stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
-            mode_d = int(blend["mode"], 8)
+            mode_d = int(str(blend["mode"]), 8)
             # Read bits are always two higher than the executable bit
             new_mode_d = mode_d & ~exec_bits | (mode_d >> 2 & exec_bits * want_exec)
             blend["mode"] = (
@@ -438,7 +448,7 @@ class ActionModule(ActionBase):
         remote_path: Path,
         parent_directory_perms: dict[str, str | int],
     ) -> bool:
-        # 1. If we have a directory_permission_file
+        # 1. If we have a directory_management_file
         for child in local_path.iterdir():
             if child.name in self.permission_files and child.is_file():
                 Display().vvv(f"Managed folder: {child.name} exists")
