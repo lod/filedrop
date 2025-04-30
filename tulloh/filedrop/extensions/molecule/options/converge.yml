@@ -1,0 +1,145 @@
+---
+# Most testing is done by the default scenario
+# The focus here is the options and corner cases
+# We verify as we go, it allows multiple option tests
+- name: Converge
+  hosts: all
+  gather_facts: false
+  tasks:
+
+    - name: Delete dumped directory - start from blank slate
+      ansible.builtin.file:
+        state: absent
+        path: /dumped
+    - name: Initial check run should want to make changes
+      filedrop:
+      check_mode: true
+      diff: false
+      register: predrop_check
+    - name: Initial check + diff should show changes
+      filedrop:
+      check_mode: true
+      diff: true
+      register: predrop_diff
+    - name: Ensure nothing has been transferred yet
+      ansible.builtin.stat:
+        path: /dumped
+      register: predrop_stat
+    - name: Real run + diff should make and show changes
+      filedrop:
+      check_mode: false
+      diff: true
+      register: filedrop_change
+    - name: Post-run check should show no changes
+      filedrop:
+      check_mode: true
+      diff: false
+      register: postdrop_check
+    - name: Post-run check + diff should show no changes
+      filedrop:
+      check_mode: true
+      diff: true
+      register: postdrop_diff
+
+    - name: Test the check/change/check results
+      ansible.builtin.assert:
+        that:
+          - predrop_check.changed == true
+          - predrop_diff.changed == true
+          - filedrop_change.changed == true
+          - postdrop_check.changed == false
+          - postdrop_diff.changed == false
+          - predrop_stat.stat.exists == false
+          - predrop_check.diff == {}
+          - postdrop_check.diff == {}
+          - 'predrop_diff.diff["/"] == {"after": {"path": "/"}, "before": {"path": "/"}}'
+          - 'predrop_diff.diff["/dumped"] == {"after": {"path": "/dumped", "state": "directory"}, "before": {"path": "/dumped", "state": "absent"}}'
+          # file includes the full local path in after_header
+          - predrop_diff.diff["/dumped/f1"] | length == 3
+          - predrop_diff.diff["/dumped/f1"].after == ""
+          - predrop_diff.diff["/dumped/f1"].after_header.endswith("/molecule/options/files/dumped/f1")
+          - predrop_diff.diff["/dumped/f1"].before == ""
+          - predrop_diff.diff["/dumped/t1"] | length == 3
+          # template includes the temporary template path in after_header
+          - predrop_diff.diff["/dumped/t1"].after == ""
+          - ("ansible-local" in predrop_diff.diff["/dumped/t1"].after_header)
+          - predrop_diff.diff["/dumped/t1"].after_header.endswith("/t1")
+          - predrop_diff.diff["/dumped/t1"].before == ""
+          - predrop_diff.diff | length == 5
+          # Real run diff should match the planned one
+          - filedrop_change.diff | length == 5
+          - filedrop_change.diff["/"] == predrop_diff.diff["/"]
+          - filedrop_change.diff["/dumped"] == predrop_diff.diff["/dumped"]
+          - filedrop_change.diff["/dumped/f1"] == predrop_diff.diff["/dumped/f1"]
+          - filedrop_change.diff["/dumped/f2"] == predrop_diff.diff["/dumped/f2"]
+          - filedrop_change.diff["/dumped/t1"] | length == 3
+          # template includes the temporary template path in after_header
+          - filedrop_change.diff["/dumped/t1"].after == ""
+          - ("ansible-local" in predrop_diff.diff["/dumped/t1"].after_header)
+          - filedrop_change.diff["/dumped/t1"].after_header.endswith("/t1")
+          - filedrop_change.diff["/dumped/t1"].before == ""
+          # When we have no changes the before and afters should be the same
+          - postdrop_diff.diff | length == 5
+          - postdrop_diff.diff["/"].before == postdrop_diff.diff["/"].after
+          - postdrop_diff.diff["/dumped"].before == postdrop_diff.diff["/dumped"].after
+          - postdrop_diff.diff["/dumped/f1"].before == postdrop_diff.diff["/dumped/f1"].after
+          - postdrop_diff.diff["/dumped/f2"].before == postdrop_diff.diff["/dumped/f2"].after
+          - postdrop_diff.diff["/dumped/t1"].before == postdrop_diff.diff["/dumped/t1"].after
+
+
+    # Currently all files (f1 and f2) have been transferred
+    # Remove f2, ensure it, and only it, changes
+    - name: Delete f2
+      ansible.builtin.file:
+        state: absent
+        path: /dumped/f2
+      register: f2_delete
+    - name: Prepare to change f2
+      filedrop:
+      check_mode: true
+      diff: true
+      register: f2_prep
+    - name: Ensure f2 hasn't been transferred yet
+      ansible.builtin.stat:
+        path: /dumped/f2
+      register: f2_stat
+    - name: Change f2
+      filedrop:
+      check_mode: false
+      diff: true
+      register: f2_change
+
+    - name: Test the check/change/check results
+      ansible.builtin.assert:
+        that:
+          - f2_delete.changed == true
+          - f2_prep.changed == true
+          - f2_change.changed == true
+          - f2_stat.stat.exists == false
+          - f2_prep.tree["/dumped/f1"].changed == false
+          - f2_prep.tree["/dumped/f2"].changed == true
+          - f2_change.tree["/dumped/f1"].changed == false
+          - f2_change.tree["/dumped/f2"].changed == true
+          # We should only be changing f2, other items before/after should be the same
+          - f2_prep.diff | length == 5
+          - f2_prep.diff["/"].before == f2_prep.diff["/"].after
+          - f2_prep.diff["/dumped"].before == f2_prep.diff["/dumped"].after
+          - f2_prep.diff["/dumped/f1"].before == f2_prep.diff["/dumped/f1"].after
+          - f2_prep.diff["/dumped/t1"].before == f2_prep.diff["/dumped/t1"].after
+          - f2_prep.diff["/dumped/f2"] | length == 3
+          - f2_prep.diff["/dumped/f2"].after == ""
+          - f2_prep.diff["/dumped/f2"].after_header.endswith("/molecule/options/files/dumped/f2")
+          - f2_prep.diff["/dumped/f2"].before == ""
+          # Actual change should be identical
+          - f2_change.diff == f2_prep.diff
+
+    # TODO: Parameter changes:
+    #   Change source directory
+    #   Change source directory - walk the tree?
+    #   Set ignore_file
+    #   Set ignore_file to list
+    #   Set ignore_file to ""
+    #   Set directory_permissions file
+    #   Set directory_permissions file to list
+    #   Set directory_permissions file to ""
+    #   async
