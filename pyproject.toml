@@ -1,0 +1,11 @@
+[tool.ruff]
+ignore=[
+  "E501",    # Line length, leave to black
+  "EM102",
+  "FIX002",
+  "FA102",
+  "ANN101",  # self annotations aren't needed
+  "TD",      # todo comment enforcing
+  "D",       # Docstrings are annoying
+]
+  # EM102,E501,TD002,TD003,FIX002,FA102,ANN101,D

@@ -23,3 +23,13 @@ platforms:
     image: docker.io/python:3.13.3-bookworm
     pre_build_image: true
     cgroupns_mode: host
+scenario:
+  # Simplify scenario, running multiple small tests in the converge
+  # This breaks the idempotence stage, also trim out the unneeded stages
+  test_sequence:
+    - cleanup
+    - destroy
+    - create
+    - converge
+    - cleanup
+    - destroy

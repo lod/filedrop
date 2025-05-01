@@ -69,24 +69,23 @@
             group: video
           d4111/layer2:
             owner: root
-        permissions_exact:
-          /dumped/d2/f1:
+          ^/dumped/d2/f1$:
             owner: nobody
             group: video
             mode: '0600'
-          /dumped/d2/t1:
+          ^/dumped/d2/t1$:
             owner: bin
             group: tty
             mode: '0600'
-          /dumped/d5/p2:
+          ^/dumped/d5/p2$:
             owner: games
             group: tty
             mode: '0600'
-          /dumped/d4/d41/d411/:
+          ^/dumped/d4/d41/d411/$:
             mode: '0046'
-          /dumped/d4/d41/d411/d4111/layer3:
+          ^/dumped/d4/d41/d411/d4111/layer3$:
             owner: nobody
-          /dumped/d4/d41/d411/d4111/layer21:
+          ^/dumped/d4/d41/d411/d4111/layer21$:
             group: adm
 
       # tulloh.filedrop.filedrop:
