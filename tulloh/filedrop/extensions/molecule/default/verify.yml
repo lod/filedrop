@@ -52,18 +52,18 @@
           - ("/etc/bob/smith" in tree)
           - ("/etc/bob/smithy" in tree)
           # pw_name is the owner, gr_name the group
-          - tree["/dumped/d1/f1"]["pw_name"] == "games"
-          - tree["/dumped/d2/f1"]["pw_name"] == "nobody"
-          - tree["/dumped/d3/f1"]["pw_name"] == "sync"
-          - tree["/dumped/d1/f1"]["gr_name"] == "dialout"
-          - tree["/dumped/d2/f1"]["gr_name"] == "video"
-          - tree["/dumped/d3/f1"]["gr_name"] == "tape"
-          - tree["/dumped/d1/t1"]["pw_name"] == "lp"
-          - tree["/dumped/d2/t1"]["pw_name"] == "bin"
-          - tree["/dumped/d3/t1"]["pw_name"] == "sync"
-          - tree["/dumped/d1/t1"]["gr_name"] == "games"
-          - tree["/dumped/d2/t1"]["gr_name"] == "tty"
-          - tree["/dumped/d3/t1"]["gr_name"] == "tape"
+          - tree["/dumped/d1/f1"].pw_name == "games"
+          - tree["/dumped/d2/f1"].pw_name == "nobody"
+          - tree["/dumped/d3/f1"].pw_name == "sync"
+          - tree["/dumped/d1/f1"].gr_name == "dialout"
+          - tree["/dumped/d2/f1"].gr_name == "video"
+          - tree["/dumped/d3/f1"].gr_name == "tape"
+          - tree["/dumped/d1/t1"].pw_name == "lp"
+          - tree["/dumped/d2/t1"].pw_name == "bin"
+          - tree["/dumped/d3/t1"].pw_name == "sync"
+          - tree["/dumped/d1/t1"].gr_name == "games"
+          - tree["/dumped/d2/t1"].gr_name == "tty"
+          - tree["/dumped/d3/t1"].gr_name == "tape"
           # Default ignore pattern, don't transfer .keep or _keep
           # But d2 contains [._]keep.j2, which does get transfered to become [._]keep
           - ("/dumped/d1/.keep" not in tree)
@@ -71,61 +71,61 @@
           - ("/dumped/d2/.keep" in tree)
           - ("/dumped/d2/_keep" in tree)
           # Inherit from mail/kmem from directory, with overwrites
-          - tree["/dumped/d5"]["pw_name"] == "mail"
-          - tree["/dumped/d5"]["gr_name"] == "kmem"
-          - tree["/dumped/d5/f1"]["pw_name"] == "games"
-          - tree["/dumped/d5/f1"]["gr_name"] == "dialout"
-          - tree["/dumped/d5/p1"]["pw_name"] == "mail"
-          - tree["/dumped/d5/p1"]["gr_name"] == "kmem"
-          - tree["/dumped/d5/p2"]["pw_name"] == "games"
-          - tree["/dumped/d5/p2"]["gr_name"] == "tty"
-          - tree["/dumped/d5/p3"]["pw_name"] == "mail"
-          - tree["/dumped/d5/p3"]["gr_name"] == "kmem"
+          - tree["/dumped/d5"].pw_name == "mail"
+          - tree["/dumped/d5"].gr_name == "kmem"
+          - tree["/dumped/d5/f1"].pw_name == "games"
+          - tree["/dumped/d5/f1"].gr_name == "dialout"
+          - tree["/dumped/d5/p1"].pw_name == "mail"
+          - tree["/dumped/d5/p1"].gr_name == "kmem"
+          - tree["/dumped/d5/p2"].pw_name == "games"
+          - tree["/dumped/d5/p2"].gr_name == "tty"
+          - tree["/dumped/d5/p3"].pw_name == "mail"
+          - tree["/dumped/d5/p3"].gr_name == "kmem"
           # f2 is set to mode 467, but we overwrite the executable bit
           # Only d1/f2 is actually executable
-          - tree["/dumped/d1/f2"]["mode"] == "0577"
-          - tree["/dumped/d2/f2"]["mode"] == "0466"
-          - tree["/dumped/d3/f2"]["mode"] == "0600"
-          # TODO: Test sticky bits
-          # TODO: Test utf-8 names, different alphabet and emojis
-          # TODO: Test we modify write protected files
+          - tree["/dumped/d1/f2"].mode == "0577"
+          - tree["/dumped/d2/f2"].mode == "0466"
+          - tree["/dumped/d3/f2"].mode == "0600"
+          - ("/dumped/weird_names/UTF_Моя_строка" in tree)
+          - ("/dumped/weird_names/🤓👉🙀🎩🛀🏼" in tree)
+          - tree["/dumped/weird_names/🤓👉🙀🎩🛀🏼"].gr_name == "daemon"
           # Layering /dumped/d4/d41/d411/d4111/layer1
           # /dumped is unmanaged = defaults --> root:root:755
-          - tree["/dumped"]["pw_name"] == "root"
-          - tree["/dumped"]["gr_name"] == "root"
-          - tree["/dumped"]["mode"] == "0755"
+          - tree["/dumped"].pw_name == "root"
+          - tree["/dumped"].gr_name == "root"
+          - tree["/dumped"].mode == "0755"
           # d4 .permissions.yml sets owner=bin --> bin:root:755
-          - tree["/dumped/d4"]["pw_name"] == "bin"
-          - tree["/dumped/d4"]["gr_name"] == "root"
-          - tree["/dumped/d4"]["mode"] == "0755"
+          - tree["/dumped/d4"].pw_name == "bin"
+          - tree["/dumped/d4"].gr_name == "root"
+          - tree["/dumped/d4"].mode == "0755"
           # d41 regex sets managed and group=video --> bin:video:755
-          - tree["/dumped/d4/d41"]["pw_name"] == "bin"
-          - tree["/dumped/d4/d41"]["gr_name"] == "video"
-          - tree["/dumped/d4/d41"]["mode"] == "0755"
-          # d411 exact sets managed mode=046 --> bin:video:057
-          - tree["/dumped/d4/d41/d411"]["pw_name"] == "bin"
-          - tree["/dumped/d4/d41/d411"]["gr_name"] == "video"
-          - tree["/dumped/d4/d41/d411"]["mode"] == "0057"
+          - tree["/dumped/d4/d41"].pw_name == "bin"
+          - tree["/dumped/d4/d41"].gr_name == "video"
+          - tree["/dumped/d4/d41"].mode == "0755"
+          # d411 exact sets managed mode=4046 --> bin:video:4057
+          - tree["/dumped/d4/d41/d411"].pw_name == "bin"
+          - tree["/dumped/d4/d41/d411"].gr_name == "video"
+          - tree["/dumped/d4/d41/d411"].mode == "4057"
           # d411 .permissions is empty --> bin:video:057
-          - tree["/dumped/d4/d41/d411/d4111"]["pw_name"] == "bin"
-          - tree["/dumped/d4/d41/d411/d4111"]["gr_name"] == "video"
-          - tree["/dumped/d4/d41/d411/d4111"]["mode"] == "0057"
+          - tree["/dumped/d4/d41/d411/d4111"].pw_name == "bin"
+          - tree["/dumped/d4/d41/d411/d4111"].gr_name == "video"
+          - tree["/dumped/d4/d41/d411/d4111"].mode == "4057"
           # layer1 inherits from the directory
-          - tree["/dumped/d4/d41/d411/d4111/layer1"]["pw_name"] == "bin"
-          - tree["/dumped/d4/d41/d411/d4111/layer1"]["gr_name"] == "video"
-          - tree["/dumped/d4/d41/d411/d4111/layer1"]["mode"] == "0046"
+          - tree["/dumped/d4/d41/d411/d4111/layer1"].pw_name == "bin"
+          - tree["/dumped/d4/d41/d411/d4111/layer1"].gr_name == "video"
+          - tree["/dumped/d4/d41/d411/d4111/layer1"].mode == "4046"
           # layer2 sets owner via regex
-          - tree["/dumped/d4/d41/d411/d4111/layer2"]["pw_name"] == "root"
-          - tree["/dumped/d4/d41/d411/d4111/layer2"]["gr_name"] == "video"
-          - tree["/dumped/d4/d41/d411/d4111/layer2"]["mode"] == "0046"
+          - tree["/dumped/d4/d41/d411/d4111/layer2"].pw_name == "root"
+          - tree["/dumped/d4/d41/d411/d4111/layer2"].gr_name == "video"
+          - tree["/dumped/d4/d41/d411/d4111/layer2"].mode == "4046"
           # layer3 sets owner via exact
-          - tree["/dumped/d4/d41/d411/d4111/layer3"]["pw_name"] == "nobody"
-          - tree["/dumped/d4/d41/d411/d4111/layer3"]["gr_name"] == "video"
-          - tree["/dumped/d4/d41/d411/d4111/layer3"]["mode"] == "0046"
+          - tree["/dumped/d4/d41/d411/d4111/layer3"].pw_name == "nobody"
+          - tree["/dumped/d4/d41/d411/d4111/layer3"].gr_name == "video"
+          - tree["/dumped/d4/d41/d411/d4111/layer3"].mode == "4046"
           # layer21 sets owner via regex, group by exact, mode from directory
-          - tree["/dumped/d4/d41/d411/d4111/layer21"]["pw_name"] == "root"
-          - tree["/dumped/d4/d41/d411/d4111/layer21"]["gr_name"] == "adm"
-          - tree["/dumped/d4/d41/d411/d4111/layer21"]["mode"] == "0046"
+          - tree["/dumped/d4/d41/d411/d4111/layer21"].pw_name == "root"
+          - tree["/dumped/d4/d41/d411/d4111/layer21"].gr_name == "adm"
+          - tree["/dumped/d4/d41/d411/d4111/layer21"].mode == "4046"
           
 
 
@@ -149,6 +149,7 @@
       ansible.builtin.assert:
         that:
           - contents_b64['/etc/bob/smith'] | b64decode == "SMITH\n"
-          - contents_b64['/etc/bob/smithy'] | b64decode == "olympus\n"  # TODO: Dynamic
+          - contents_b64['/etc/bob/smithy'] | b64decode == "templated\n"
+          # TODO: Test layers of variable sources, facts, automatics, task vars etc.
           # ansible_hostname and ansible_facts['nodename'] are both remote system, could do a local setup
           # Probably better to switch variable

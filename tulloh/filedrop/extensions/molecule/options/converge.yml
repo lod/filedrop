@@ -335,3 +335,5 @@
 
         # TODO: Parameter changes:
         #   Change source directory - walk the option tree?
+        #
+        # TODO: Test we modify write protected files

@@ -95,8 +95,14 @@ class Permissions:
 # TODO: It looks like directory_management_file can also be json, from https://github.com/ansible/ansible/blob/aab732cb826db93265b03ca6f6f9eb1a03746975/lib/ansible/parsing/utils/yaml.py#L22
 
 # TODO: The whole notify thing
+#       We need to output the list of handlers to run in result_item['_ansible_notify']
 
 # TODO: Do a side effect scenario, apply role, local changes, apply role
+
+# TODO: Once a directory is managed everything below it in the tree must also be managed.
+#       So sub-files inherit the "managed" state
+
+# TODO: Can mode not be numbers?  Should we support that?
 
 
 class ActionModule(ActionBase):
@@ -336,15 +342,16 @@ class ActionModule(ActionBase):
         # Template process is based on the standard template action
         # Basic process is to read the file, render the template, write to a temporary file, and transfer
 
-        temp_vars = generate_ansible_template_vars(
-            remote_path,
-            fullpath=local_path,
-            dest_path=remote_path,
-        )
-
         data_templar = self._templar.copy_with_new_env(
             searchpath=searchpath,
-            available_variables=temp_vars,
+            available_variables={
+                **self._task_vars,
+                **generate_ansible_template_vars(
+                    remote_path,
+                    fullpath=local_path,
+                    dest_path=remote_path,
+                )
+            }
         )
         template_data = local_path.read_text()
         resultant = data_templar.template(template_data, escape_backslashes=False)

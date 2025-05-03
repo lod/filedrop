@@ -2,39 +2,7 @@
 - name: Converge
   hosts: all
   gather_facts: true
-  #become: true
   tasks:
-#    - ansible.builtin.copy:
-#        src: dumped/d1/f1
-#        dest: /dumped/d1/f1
-#        owner: nobody
-#        group: dialout
-#    - ansible.builtin.copy:
-#        src: dumped/d1/f2
-#        dest: /dumped/d1/f2
-#        owner: nobody
-#        group: dialout
-#    - ansible.builtin.copy:
-#        src: dumped/d1/f2
-#        dest: /dumped/d1/f2
-#        owner: nobody
-#        group: dialout
-#    - debug:
-#        msg: BREAK BREAK BREAK
-#    - ansible.builtin.copy:
-#        src: dumped/d3/{{ item }}
-#        dest: /dumped/d3/{{ item }}
-#        owner: nobody
-#        group: dialout
-#      loop:
-#        - f1
-#        - f2
-#        - f3
-#    - debug:
-#        msg: BREAK BREAK BREAK
-#
-
-
     # Common users: root, bin, daemon, lp, sync, mail, games, nobody
     # Common groups: adm, audio, bin, cdrom, daemon, dialout, disk, floppy,
     #                games, kmem, lp, mail, man, root, sys, tape, tty, users, video
@@ -65,6 +33,8 @@
             owner: sync
             group: tape
             mode: '0600'
+          🎩:
+            group: daemon
           d41/$:
             group: video
           d4111/layer2:
@@ -82,14 +52,10 @@
             group: tty
             mode: '0600'
           ^/dumped/d4/d41/d411/$:
-            mode: '0046'
+            mode: '4046'  # suid
           ^/dumped/d4/d41/d411/d4111/layer3$:
             owner: nobody
           ^/dumped/d4/d41/d411/d4111/layer21$:
             group: adm
-
-      # tulloh.filedrop.filedrop:
-    #- name: Second call
-      #filedrop:
-      #
-      # TODO: Should verify the ouput too, maybe try playing with the changed/unchanged
+      vars:
+        template_var: templated
