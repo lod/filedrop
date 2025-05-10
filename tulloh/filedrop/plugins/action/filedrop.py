@@ -92,8 +92,6 @@ class Permissions:
 # TODO: List unmanaged files in managed directory
 # TODO: Option - delete unmanaged files in managed directory
 
-# TODO: It looks like directory_management_file can also be json, from https://github.com/ansible/ansible/blob/aab732cb826db93265b03ca6f6f9eb1a03746975/lib/ansible/parsing/utils/yaml.py#L22
-
 # TODO: The whole notify thing
 #       We need to output the list of handlers to run in result_item['_ansible_notify']
 
@@ -231,7 +229,7 @@ class ActionModule(ActionBase):
                     source_path,
                     permissions,
                 )
-                tree[remote_path]["managed_directory"] = permissions is None
+                tree[remote_path]["managed"] = permissions is not None
             for filename in files:
                 if filename in [*self.ignore_files, *self.permission_files]:
                     Display().vvv(f"Ignoring file {remote_base / filename}")
@@ -278,7 +276,7 @@ class ActionModule(ActionBase):
             "mode",
             "size",
             "checksum",
-            "managed_directory",
+            "managed",
         ]
         ret.update(
             {
@@ -297,7 +295,6 @@ class ActionModule(ActionBase):
         )
         if ret["failed"]:
             ret["msg"] = {str(p): r["msg"] for p, r in tree.items() if "msg" in r}
-        # TODO: test managed_directory
 
         return ret
 
@@ -350,8 +347,8 @@ class ActionModule(ActionBase):
                     remote_path,
                     fullpath=local_path,
                     dest_path=remote_path,
-                )
-            }
+                ),
+            },
         )
         template_data = local_path.read_text()
         resultant = data_templar.template(template_data, escape_backslashes=False)
@@ -442,6 +439,7 @@ class ActionModule(ActionBase):
             for child in local_path.iterdir():
                 if child.name in self.permission_files and child.is_file():
                     # TODO: Test bad/rubbish files, ensure we fail gracefully
+                    # Note: The from_yaml call actually loads both yaml and json data
                     from_permfile = from_yaml(child.read_text())
                     # Empty files return None
                     if from_permfile is not None:
@@ -485,7 +483,15 @@ class ActionModule(ActionBase):
         # 3. If the remote folder doesn't exist
         # We need to test for this, otherwise we don't know if we should pass permission options
         # Do this test last because it's slow
-        return not cast(
+        # return not cast(
+        #    dict[str, Any],
+        #    self._execute_remote_stat(str(remote_path), self._task_vars, follow=True),
+        # )["exists"]
+        rem_stat = cast(
             dict[str, Any],
             self._execute_remote_stat(str(remote_path), self._task_vars, follow=True),
-        )["exists"]
+        )
+        if not rem_stat["exists"]:
+            Display().vvv(f"Managed folder: {remote_path} doesn't yet exist")
+
+        return not rem_stat["exists"]

@@ -39,6 +39,13 @@
     #- name: Dump
     #  ansible.builtin.debug:
     #    msg: "{{ tree | list }}"
+    
+    - name: Dump dumped
+      ansible.builtin.debug:
+        var: tree["/dumped"]
+    - name: Dump dumped/d4
+      ansible.builtin.debug:
+        var: tree["/dumped/d4"]
 
     # File details are as per the stat module
     # /smithy": {"atime": 1745542108.6770728, "ctime": 1745542045.7403781, "dev": 132, "gid": 0, "gr_name": "root", "inode": 97020399, "isblk": false, "ischr": false, "isdir": false, "isfifo": false, "isgid": false, "islnk": false, "isreg": true, "issock": false, "isuid": false, "mode": "0644", "mtime": 1745542043.0, "nlink": 1, "path": "/smithy", "pw_name": "root", "rgrp": true, "roth": true, "rusr": true, "size": 8, "uid": 0, "wgrp": false, "woth": false, "wusr": true, "xgrp": false, "xoth": false, "xusr": false}
@@ -126,7 +133,6 @@
           - tree["/dumped/d4/d41/d411/d4111/layer21"].pw_name == "root"
           - tree["/dumped/d4/d41/d411/d4111/layer21"].gr_name == "adm"
           - tree["/dumped/d4/d41/d411/d4111/layer21"].mode == "4046"
-          
 
 
     - name: Get file contents
