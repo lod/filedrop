@@ -38,9 +38,10 @@ Directory permissions follow the same pattern as files but are a little more com
 
 The following process is used to determine if a folder should be managed.
 
-1. Folders in the filedrop tree may contain a file, one of .permissions, _permissions, .permissions.yml, _permissions.yml (this is the default set, it is configurable via the directory_management_file option).  If this file exists then the directory is controlled. This is the recommended pattern to use.
-2. If a permissions_re expression contains a / then it is considered a directory targeting regular expression.  For matching all directories end in a / so they can be differentiated, for example /etc/. If a directory targeting regular expression matches the directory then it is managed.  This does not have to match at the end, for example "/etc/" will match /etc/ and all folders within /etc/, more specific regex such as "/etc/$" can be used if this is undesirable.  (NOTE: Would contains / be better?)
-3. If the folder does not yet exist on the remote system it will be treated as managed for the creation.  Once created it will not be managed.
+1. If a parent folder is managed then all folders within it are also managed.
+2. Folders in the filedrop tree may contain a file, one of .permissions, _permissions, .permissions.yml, _permissions.yml (this is the default set, it is configurable via the directory_management_file option).  If this file exists then the directory is controlled. This is the recommended pattern to use.
+3. If a permissions_re expression contains a / then it is considered a directory targeting regular expression.  For matching all directories end in a / so they can be differentiated, for example /etc/. If a directory targeting regular expression matches the directory then it is managed.  This does not have to match at the end, for example "/etc/" will match /etc/ and all folders within /etc/, more specific regex such as "/etc/$" can be used if this is undesirable.  (NOTE: Would contains / be better?)
+4. If the folder does not yet exist on the remote system it will be treated as managed for the creation.  Once created it will not be managed.
 
 A managed folder follows similar permission rules to files.
 
@@ -96,9 +97,6 @@ class Permissions:
 #       We need to output the list of handlers to run in result_item['_ansible_notify']
 
 # TODO: Do a side effect scenario, apply role, local changes, apply role
-
-# TODO: Once a directory is managed everything below it in the tree must also be managed.
-#       So sub-files inherit the "managed" state
 
 # TODO: Can mode not be numbers?  Should we support that?
 
@@ -216,6 +214,7 @@ class ActionModule(ActionBase):
                 if self.is_managed_directory(
                     local_path,
                     remote_path,
+                    tree
                 ):
                     permissions = self.build_permissions(
                         local_path,
@@ -464,14 +463,22 @@ class ActionModule(ActionBase):
         self,
         local_path: Path,
         remote_path: Path,
+        tree: dict[Path, dict[str, Any]]
     ) -> bool:
-        # 1. If we have a directory_management_file
+        # 1. If the directory ancenstor is managed
+        # This doesn't have to be an exhaustive search, we just need to check one level up
+        # That level will have inherited from above, and we always work down
+        if tree.get(remote_path.parent,{}).get("managed"):
+            Display().vvv(f"Managed folder: {remote_path.parent} is managed")
+            return True
+
+        # 2. If we have a directory_management_file
         for child in local_path.iterdir():
             if child.name in self.permission_files and child.is_file():
                 Display().vvv(f"Managed folder: {child.name} exists")
                 return True
 
-        # 2. If directory expression matches, directory expressions contain a /
+        # 3. If directory expression matches, directory expressions contain a /
         for reg in self.permissions_re:
             Display().vvv(
                 f"folder testing regex {reg.pattern} - {'/' in reg.pattern} {str(remote_path) + '/'} {reg.search(str(remote_path) + '/')}",
@@ -480,7 +487,7 @@ class ActionModule(ActionBase):
                 Display().vvv(f"Managed folder: regex {reg.pattern} matches")
                 return True
 
-        # 3. If the remote folder doesn't exist
+        # 4. If the remote folder doesn't exist
         # We need to test for this, otherwise we don't know if we should pass permission options
         # Do this test last because it's slow
         # return not cast(

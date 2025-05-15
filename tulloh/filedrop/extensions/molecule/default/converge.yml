@@ -67,10 +67,13 @@
           # d4 has a .permissions.yml file, so it is managed
           # This means all directories below it must also be managed
           - dropped.tree["/dumped"].managed == False
-          - dropped.tree["/dumped/d4"].managed == True
-          - dropped.tree["/dumped/d4/d41"].managed == True
-          - dropped.tree["/dumped/d4/d41/d411"].managed == True
-          - dropped.tree["/dumped/d4/d41/d411/d4111"].managed == True
+          - dropped.tree["/dumped/d4"].managed == True  # File
+          - dropped.tree["/dumped/d4/d41"].managed == True # Regex
+          - dropped.tree["/dumped/d4/d42"].managed == True # Inherited
+          - dropped.tree["/dumped/d4/d42/d421"].managed == True # Inherited
+          - dropped.tree["/dumped/d4/d41/d411"].managed == True # Exact Regex
+          - dropped.tree["/dumped/d4/d41/d411/d4111"].managed == True # File
+          - dropped.tree["/dumped/d4/d41/d411/d4111/d41111"].managed == True # Inherited
           # d3 matches regex "d3" which is not a directory regex --> not managed
           - dropped.tree["/dumped/d3"].managed == False
           # d3/d31/ matches regex "d[34]1/$" which is a directory regex
