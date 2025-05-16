@@ -40,27 +40,28 @@ The following process is used to determine if a folder should be managed.
 
 1. If a parent folder is managed then all folders within it are also managed.
 2. Folders in the filedrop tree may contain a file, one of .permissions, _permissions, .permissions.yml, _permissions.yml (this is the default set, it is configurable via the directory_management_file option).  If this file exists then the directory is controlled. This is the recommended pattern to use.
-3. If a permissions_re expression contains a / then it is considered a directory targeting regular expression.  For matching all directories end in a / so they can be differentiated, for example /etc/. If a directory targeting regular expression matches the directory then it is managed.  This does not have to match at the end, for example "/etc/" will match /etc/ and all folders within /etc/, more specific regex such as "/etc/$" can be used if this is undesirable.  (NOTE: Would contains / be better?)
+3. If a path_re expression contains a / then it is considered a directory targeting regular expression.  For matching all directories end in a / so they can be differentiated, for example /etc/. If a directory targeting regular expression matches the directory then it is managed.  This does not have to match at the end, for example "/etc/" will match /etc/ and all folders within /etc/, more specific regex such as "/etc/$" can be used if this is undesirable.  (NOTE: Would contains / be better?)
 4. If the folder does not yet exist on the remote system it will be treated as managed for the creation.  Once created it will not be managed.
 
 A managed folder follows similar permission rules to files.
 
 1. The permissions are all taken from the parent directory.
-2. The permissions_re regex keys are matched against the path.  Note all keys are matched, not just ones that end in /.
+2. The path_re regex keys are matched against the path.  Note all keys are matched, not just ones that end in /.
 3. The directory_management_file may contain yaml definitions of the owner, group or mode.
 
 
 
 options:
-    permissions_re:
+    path_re:
         description:
         - Set file permissions using file regular expressions.
         - This is a two level dictionary, the first level key is a regular expression.
         - Any path which matches the regular expression (using re.search()) has the permissions set as specified.
         - Directories end in / for match reasons, this allows differentiation between files or directories.
-        - The value is a dictionary containing one or more of owner, group or mode.
+        - The value is a dictionary containing one or more of owner, group, mode or notify.
         - Partial applications also work, for example if only owner is specified then the group and mode are unchanged.
         - The ansible.builtin.copy rules also apply, numeric owners are user IDs and not specifying an owner means that the current user is used or existing owner if running as root.
+        - The notify field may be a single entry or a list of entries.
     ignore_file:
         description:
         - File name to ignore. This is mostly useful for creating empty directories without git cleaning them up.
@@ -70,7 +71,7 @@ options:
     directory_management_file:
         description:
         - File name which specifies that the containing directory is managed.
-        - The file may specify the owner, group, or mode permissions in the contents.  This can be either a yaml or json format.
+        - The file may specify the owner, group, mode permissions or notify triggers in the contents.  This can be either a yaml or json format.
         - This can be either a filename string or a list of filename strings.
         - Setting this to blank will prevent the directory_management_file functionality.
 
@@ -81,20 +82,30 @@ The final status will be failure and the msg will reference all the failed eleme
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
-class Permissions:
+class Options:
     owner: str | None = None
     group: str | None = None
     mode: str | None = None
+    notify: set[str] = dataclasses.field(default_factory=set)
 
+    # JSON friendly dict
     def asdict(self) -> dict[str, str]:
-        return {k: v for k, v in dataclasses.asdict(self).items() if v is not None}
+        return {k: (v if not isinstance(v, set) else list(v)) for k, v in dataclasses.asdict(self).items() if v is not None}
 
+    def permission_dict(self) -> dict[str,str]:
+        return {k: v for k, v in dataclasses.asdict(self).items() if v is not None and k in ["owner", "group", "mode"]}
+
+
+    def __post_init__(self):
+        if isinstance(self.notify, str):
+            self.notify = {self.notify}  # Allow dodgy string initialisation
+        else:
+            self.notify = set(self.notify) # Convert lists, interables, etc.
+
+# TODO: What if someone attaches a notify to the task
 
 # TODO: List unmanaged files in managed directory
 # TODO: Option - delete unmanaged files in managed directory
-
-# TODO: The whole notify thing
-#       We need to output the list of handlers to run in result_item['_ansible_notify']
 
 # TODO: Do a side effect scenario, apply role, local changes, apply role
 
@@ -145,9 +156,9 @@ class ActionModule(ActionBase):
         ret = super().run(tmp, self._task_vars)
 
         source: str = self._task.args.get("src", "files")
-        self.permissions_re = {
-            re.compile(k): Permissions(**v)
-            for k, v in self._task.args.get("permissions_re", {}).items()
+        self.path_re = {
+            re.compile(k): Options(**v)
+            for k, v in self._task.args.get("path_re", {}).items()
         }
         ignore_files: str | list[str] = self._task.args.get(
             "ignore_file",
@@ -204,7 +215,8 @@ class ActionModule(ActionBase):
         tree[Path("/")] = self.process_dir(Path("/"), source_path, None)
         for root, dirs, files in source_path.walk(top_down=True, follow_symlinks=True):
             remote_base = "/" / root.relative_to(source_path)
-            directory_perms = Permissions(
+            Display().vvv(f"TT {tree[remote_base]}")
+            directory_perms = Options(
                 **{k: tree[remote_base][k] for k in ("owner", "group", "mode")},
             )
             for dirname in dirs:
@@ -216,19 +228,19 @@ class ActionModule(ActionBase):
                     remote_path,
                     tree
                 ):
-                    permissions = self.build_permissions(
+                    options = self.build_options(
                         local_path,
                         remote_path,
                         directory_perms,
                     )
                 else:
-                    permissions = None  # We don't manage the permissions
+                    options = None  # We don't manage the path
                 tree[remote_path] = self.process_dir(
                     remote_path,
                     source_path,
-                    permissions,
+                    options,
                 )
-                tree[remote_path]["managed"] = permissions is not None
+                tree[remote_path]["managed"] = options is not None
             for filename in files:
                 if filename in [*self.ignore_files, *self.permission_files]:
                     Display().vvv(f"Ignoring file {remote_base / filename}")
@@ -237,7 +249,7 @@ class ActionModule(ActionBase):
                 local_path = root / filename
                 if filename[-3:] == ".j2":
                     remote_path = (remote_base / filename).with_suffix("")
-                    permissions = self.build_permissions(
+                    options = self.build_options(
                         local_path,
                         remote_path,
                         directory_perms,
@@ -246,11 +258,11 @@ class ActionModule(ActionBase):
                         local_path,
                         remote_path,
                         template_searchpath,
-                        permissions,
+                        options,
                     )
                 else:
                     remote_path = remote_base / filename
-                    permissions = self.build_permissions(
+                    options = self.build_options(
                         local_path,
                         remote_path,
                         directory_perms,
@@ -258,7 +270,7 @@ class ActionModule(ActionBase):
                     tree[remote_path] = self.process_file(
                         local_path,
                         remote_path,
-                        permissions,
+                        options,
                     )
                 # TODO: Figure out how symlinks work, especially symlinks out of the tree
 
@@ -276,6 +288,7 @@ class ActionModule(ActionBase):
             "size",
             "checksum",
             "managed",
+            "notify"
         ]
         ret.update(
             {
@@ -290,10 +303,14 @@ class ActionModule(ActionBase):
                     str(p): {e: v.get(e) for e in tree_elements}
                     for p, v in tree.items()
                 },
+                "notify": list({n for p, v in tree.items() for n in v.get("notify",[])}),
+                "_ansible_notify": list({n for p, v in tree.items() for n in v.get("notify",[])}),
+
             },
         )
         if ret["failed"]:
             ret["msg"] = {str(p): r["msg"] for p, r in tree.items() if "msg" in r}
+        
 
         return ret
 
@@ -301,10 +318,10 @@ class ActionModule(ActionBase):
         self,
         path: Path,
         local_root: Path,
-        permissions: Permissions | None,
+        options: Options | None,
     ) -> dict[str, str | int | bool]:
         # TODO: Can optimize by sending bulk requests?  Do I need by own module for the other side?
-        perm_dict = permissions.asdict() if permissions is not None else {}
+        perm_dict = options.permission_dict() if options is not None else {}
         module_args = {"path": str(path), "state": "directory", **perm_dict}
 
         file_return = cast(
@@ -324,6 +341,10 @@ class ActionModule(ActionBase):
         if self._task.check_mode and file_return["changed"]:
             file_return.update(perm_dict)
 
+        # Ansible handles notify at the task level, so we need to do it
+        if file_return.get("changed"):
+            file_return["notify"] = list(options.notify)
+
         return file_return
 
     def process_template(
@@ -331,7 +352,7 @@ class ActionModule(ActionBase):
         local_path: Path,
         remote_path: Path,
         searchpath: list[str],
-        permissions: Permissions,
+        options: Options,
     ) -> dict[str, str | int | bool]:
         # remote_path doesn't include the .j2, local_path does
 
@@ -358,7 +379,7 @@ class ActionModule(ActionBase):
         result_file = local_tempdir / remote_path.name
         try:
             result_file.write_text(resultant)
-            copy_return = self.copy_action(result_file, remote_path, permissions)
+            copy_return = self.copy_action(result_file, remote_path, options)
         finally:
             Path(result_file).unlink()
             local_tempdir.rmdir()
@@ -369,22 +390,22 @@ class ActionModule(ActionBase):
         self,
         local_path: Path,
         remote_path: Path,
-        permissions: Permissions,
+        options: Options,
     ) -> dict[str, str | int | bool]:
-        return self.copy_action(local_path, remote_path, permissions)
+        return self.copy_action(local_path, remote_path, options)
 
     def copy_action(
         self,
         source_file: Path,
         dest_file: Path,
-        permissions: Permissions,
+        options: Options,
     ) -> dict[str, str | int | bool]:
         copy_task = self._task.copy()  # copy across check_mode, diff etc.
         copy_task.args = {
             "src": str(source_file),
             "dest": str(dest_file),
             "follow": True,
-            **permissions.asdict(),
+            **options.permission_dict(),
         }
         copy_task.async_val = False  # Not supported
 
@@ -406,14 +427,18 @@ class ActionModule(ActionBase):
         if isinstance(copy_return["diff"], list):
             copy_return["diff"] = next(iter(copy_return["diff"]), {})
 
+        # Ansible handles notify at the task level, so we need to do it
+        if copy_return.get("changed"):
+            copy_return["notify"] = list(options.notify)
+
         return copy_return
 
-    def build_permissions(
+    def build_options(
         self,
         local_path: Path,
         remote_path: Path,
-        directory_perms: Permissions,
-    ) -> Permissions:
+        directory_perms: Options,
+    ) -> Options:
         # In increasing priority:
         #   1. Directory
         #   2. Regex
@@ -430,7 +455,7 @@ class ActionModule(ActionBase):
 
         perm_layers = ChainMap(directory_perms.asdict())  # Note, combines backwards
 
-        for reg, potential in self.permissions_re.items():
+        for reg, potential in self.path_re.items():
             if reg.search(remote_path_str) is not None:
                 perm_layers.maps.insert(0, potential.asdict())
 
@@ -442,9 +467,12 @@ class ActionModule(ActionBase):
                     from_permfile = from_yaml(child.read_text())
                     # Empty files return None
                     if from_permfile is not None:
-                        perm_layers.maps.insert(0, from_permfile)
+                        perm_layers.maps.insert(0, Options(**from_permfile).asdict())
 
-        blend = Permissions(**dict(perm_layers))
+        blend = Options(**dict(perm_layers))
+
+        # Notifications combine, are not replaced by higher layers
+        blend.notify = {n for layer in perm_layers.maps for n in layer.get("notify",[])}
 
         # Set the mode executable bits, based on the owner bit of the file
         want_exec = local_path.stat().st_mode & stat.S_IXUSR > 0
@@ -479,7 +507,7 @@ class ActionModule(ActionBase):
                 return True
 
         # 3. If directory expression matches, directory expressions contain a /
-        for reg in self.permissions_re:
+        for reg in self.path_re:
             Display().vvv(
                 f"folder testing regex {reg.pattern} - {'/' in reg.pattern} {str(remote_path) + '/'} {reg.search(str(remote_path) + '/')}",
             )

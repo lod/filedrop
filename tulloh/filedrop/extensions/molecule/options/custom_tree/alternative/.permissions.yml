@@ -1,1 +1,1 @@
-{"group":"audio"}
+{"group":"audio", "notify":["list1","list2"]}

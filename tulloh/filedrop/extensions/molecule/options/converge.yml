@@ -247,8 +247,11 @@
           - alternative_file
           - .permissions  # Already exists, prevent permission switch
         directory_management_file:
-          - .keep  # sets owner=bin
-          - .permissions.yml  # sets group=audio, via json (super twisted)
+          - .keep  # sets owner=bin, notify=Note1
+          - .permissions.yml  # sets group=audio, notify=list1,list2 via json (super twisted)
+      register: alt_list_drop
+    - name: Flush handlers
+      meta: flush_handlers
     - name: Check on the transferred files
       ansible.builtin.stat:
         path: "/alternative/{{ item }}"
@@ -282,6 +285,9 @@
           - (alt_list_stat.results | selectattr("item", "eq", "_permissions"))[0].stat.pw_name == "bin"
           - (alt_list_stat.results | selectattr("item", "eq", "_permissions"))[0].stat.gr_name == "audio"
           - (alt_list_stat.results | selectattr("item", "eq", "_permissions"))[0].stat.mode == "0644"
+
+          - (alt_list_drop.tree["/alternative"].notify | sort) == (["Note1", "list1", "list2"] | sort)
+          - (alt_list_drop.notify | sort) == (["Note1", "list1", "list2"] | sort)
 
     # async tests, just want to ensure nothing weird happens
     # async isn't supported - blocked
@@ -337,3 +343,13 @@
         #   Change source directory - walk the option tree?
         #
         # TODO: Test we modify write protected files
+  handlers:
+    - name: Note1
+      ansible.builtin.set_fact:
+        Note1: True
+    - name: list1
+      ansible.builtin.set_fact:
+        list1: True
+    - name: list2
+      ansible.builtin.set_fact:
+        list2: True

@@ -2,6 +2,28 @@
 - name: Converge
   hosts: all
   gather_facts: true
+  handlers:  # Must be defined before the tasks
+    - name: f1
+      ansible.builtin.set_fact:
+        f1: True
+    - name: Template handler
+      listen: t1
+      ansible.builtin.set_fact:
+        t1: True
+    - name: d2 1
+      ansible.builtin.set_fact:
+        d2-1: True
+    - name: d2 2
+      ansible.builtin.set_fact:
+        d2-2: True
+    - name: All
+      debug:
+        msg: HANDLER RUN
+      listen:
+        - f1
+        - t1
+        - d1 1
+        - d2 2
   tasks:
     # Common users: root, bin, daemon, lp, sync, mail, games, nobody
     # Common groups: adm, audio, bin, cdrom, daemon, dialout, disk, floppy,
@@ -18,17 +40,19 @@
 
     - name: Do the thing
       filedrop:
-        permissions_re:
+        path_re:
           f1:
             owner: games
             group: dialout
             mode: '0600'
+            notify: f1
           f2:
             mode: '0467'
           t1:
             owner: lp
             group: games
             mode: '0600'
+            notify: t1
           d3:
             owner: sync
             group: tape
@@ -43,6 +67,9 @@
             owner: nobody
             group: video
             mode: '0600'
+            notify:
+              - d2 1
+              - d2 2
           ^/dumped/d2/t1$:
             owner: bin
             group: tty
@@ -61,12 +88,19 @@
         template_var: templated
       register: dropped
 
+    - name: Flush handlers so we can test them
+      meta: flush_handlers
+
+
     - name: Test filedrop return
       ansible.builtin.assert:
         that:
+          # Note that for the first run all new directories will be managed due to creation
+          # Test looking for changed flag
+          #
           # d4 has a .permissions.yml file, so it is managed
           # This means all directories below it must also be managed
-          - dropped.tree["/dumped"].managed == False
+          - dropped.tree["/dumped"].managed == dropped.tree["/dumped"].changed
           - dropped.tree["/dumped/d4"].managed == True  # File
           - dropped.tree["/dumped/d4/d41"].managed == True # Regex
           - dropped.tree["/dumped/d4/d42"].managed == True # Inherited
@@ -75,6 +109,20 @@
           - dropped.tree["/dumped/d4/d41/d411/d4111"].managed == True # File
           - dropped.tree["/dumped/d4/d41/d411/d4111/d41111"].managed == True # Inherited
           # d3 matches regex "d3" which is not a directory regex --> not managed
-          - dropped.tree["/dumped/d3"].managed == False
+          - dropped.tree["/dumped/d3"].managed == dropped.tree["/dumped/d3"].changed
           # d3/d31/ matches regex "d[34]1/$" which is a directory regex
           - dropped.tree["/dumped/d3/d31"].managed == True
+          # /etc/ should always exist, no initial creation
+          - dropped.tree["/etc"].managed == False
+
+    - name: Test handler notifications fired
+      ansible.builtin.assert:
+        that:
+          - f1 is defined
+          - t1 is defined
+          - d2-1 is defined
+          - d2-2 is defined
+      when: dropped.changed
+      tags:
+        - molecule-idempotence-notest  # Handlers won't fire for the idempotence run
+
