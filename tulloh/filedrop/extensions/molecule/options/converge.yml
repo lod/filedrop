@@ -250,6 +250,7 @@
           - .keep  # sets owner=bin, notify=Note1
           - .permissions.yml  # sets group=audio, notify=list1,list2 via json (super twisted)
       register: alt_list_drop
+      #notify: parent1  # disables the custom notifications, no way around it
     - name: Flush handlers
       meta: flush_handlers
     - name: Check on the transferred files
@@ -265,6 +266,14 @@
         - .permissions.yml
         - _permissions.yml
       register: alt_list_stat
+
+    - name: Notification run state
+      debug:
+        msg:
+          Note1: "{{ Note1 | default('undefined') }}"
+          list1: "{{ list1 | default('undefined') }}"
+          list2: "{{ list2 | default('undefined') }}"
+          parent1: "{{ parent1 | default('undefined') }}"
     - name: Test the list option tree results
       ansible.builtin.assert:
         that:
@@ -288,6 +297,9 @@
 
           - (alt_list_drop.tree["/alternative"].notify | sort) == (["Note1", "list1", "list2"] | sort)
           - (alt_list_drop.notify | sort) == (["Note1", "list1", "list2"] | sort)
+          - Note1 is defined
+          - list1 is defined
+          - list2 is defined
 
     # async tests, just want to ensure nothing weird happens
     # async isn't supported - blocked
@@ -353,3 +365,6 @@
     - name: list2
       ansible.builtin.set_fact:
         list2: True
+    - name: parent1
+      ansible.builtin.set_fact:
+        parent1: True

@@ -78,6 +78,10 @@ options:
 Note that in the event of a failure processing will continue with the rest of the tree.
 The final status will be failure and the msg will reference all the failed elements.
 
+TODO: Document notification system
+
+WARNING: Using the standard task based notification system on this task will overwrite the custom notifications returned by this task.  They cannot both be used together.
+
 """
 
 
@@ -101,8 +105,6 @@ class Options:
             self.notify = {self.notify}  # Allow dodgy string initialisation
         else:
             self.notify = set(self.notify) # Convert lists, interables, etc.
-
-# TODO: What if someone attaches a notify to the task
 
 # TODO: List unmanaged files in managed directory
 # TODO: Option - delete unmanaged files in managed directory
@@ -320,7 +322,7 @@ class ActionModule(ActionBase):
         local_root: Path,
         options: Options | None,
     ) -> dict[str, str | int | bool]:
-        # TODO: Can optimize by sending bulk requests?  Do I need by own module for the other side?
+        # TODO: Could optimize by sending bulk requests, requires custom client side module
         perm_dict = options.permission_dict() if options is not None else {}
         module_args = {"path": str(path), "state": "directory", **perm_dict}
 

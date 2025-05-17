@@ -2,28 +2,6 @@
 - name: Converge
   hosts: all
   gather_facts: true
-  handlers:  # Must be defined before the tasks
-    - name: f1
-      ansible.builtin.set_fact:
-        f1: True
-    - name: Template handler
-      listen: t1
-      ansible.builtin.set_fact:
-        t1: True
-    - name: d2 1
-      ansible.builtin.set_fact:
-        d2-1: True
-    - name: d2 2
-      ansible.builtin.set_fact:
-        d2-2: True
-    - name: All
-      debug:
-        msg: HANDLER RUN
-      listen:
-        - f1
-        - t1
-        - d1 1
-        - d2 2
   tasks:
     # Common users: root, bin, daemon, lp, sync, mail, games, nobody
     # Common groups: adm, audio, bin, cdrom, daemon, dialout, disk, floppy,
@@ -120,9 +98,31 @@
         that:
           - f1 is defined
           - t1 is defined
-          - d2-1 is defined
-          - d2-2 is defined
+          - d2_1 is defined
+          - d2_2 is defined
       when: dropped.changed
       tags:
         - molecule-idempotence-notest  # Handlers won't fire for the idempotence run
 
+  handlers:
+    - name: f1
+      ansible.builtin.set_fact:
+        f1: True
+    - name: Template handler
+      listen: t1
+      ansible.builtin.set_fact:
+        t1: True
+    - name: d2 1
+      ansible.builtin.set_fact:
+        d2_1: True
+    - name: d2 2
+      ansible.builtin.set_fact:
+        d2_2: True
+    - name: All
+      debug:
+        msg: HANDLER RUN
+      listen:
+        - f1
+        - t1
+        - d1 1
+        - d2 2
