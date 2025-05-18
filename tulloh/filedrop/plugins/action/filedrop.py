@@ -85,6 +85,7 @@ The final status will be failure and the msg will reference all the failed eleme
 TODO:
 * Document notification system
 * Document tree, and unmanaged_contents field
+* The mode (however it is supplied) must be numeric
      
 
 WARNING: Using the standard task based notification system on this task will overwrite the custom notifications returned by this task.  They cannot both be used together.
@@ -116,8 +117,6 @@ class Options:
 # TODO: Allow delete unmanaged files to be set on a per-directory basis
 
 # TODO: Do a side effect scenario, apply role, local changes, apply role
-
-# TODO: Can mode not be numbers?  Should we support that?
 
 # TODO: Figure out how symlinks work, especially symlinks out of the tree
 
@@ -532,7 +531,11 @@ class ActionModule(ActionBase):
         # Set the mode executable bits, based on the owner bit of the file
         want_exec = local_path.stat().st_mode & stat.S_IXUSR > 0
         exec_bits = stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
-        mode_d = int(str(blend.mode), 8)
+        try:
+            mode_d = int(str(blend.mode), 8)
+        except ValueError:
+            # The provide mode wasn't numeric, like "u=rw,g=,o="
+            raise Exception("mode must be numeric") from None
         # Read bits are always two higher than the executable bit
         new_mode_d = mode_d & ~exec_bits | (mode_d >> 2 & exec_bits * want_exec)
         blend.mode = "0" + oct(new_mode_d)[2:]  # Drop the 0o, but want a leading 0
