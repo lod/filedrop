@@ -241,7 +241,7 @@ class ActionModule(ActionBase):
                 if self.is_managed_directory(
                     local_path,
                     remote_path,
-                    tree
+                    directory_entry
                 ):
                     options = self.build_options(
                         local_path,
@@ -546,12 +546,12 @@ class ActionModule(ActionBase):
         self,
         local_path: Path,
         remote_path: Path,
-        tree: dict[Path, dict[str, Any]]
+        parent_directory_details: dict[str, Any]
     ) -> bool:
         # 1. If the directory ancenstor is managed
         # This doesn't have to be an exhaustive search, we just need to check one level up
         # That level will have inherited from above, and we always work down
-        if tree.get(remote_path.parent,{}).get("managed"):
+        if parent_directory_details.get("managed"):
             Display().vvv(f"Managed folder: {remote_path.parent} is managed")
             return True
 
