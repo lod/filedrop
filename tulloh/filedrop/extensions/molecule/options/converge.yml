@@ -301,6 +301,61 @@
           - list1 is defined
           - list2 is defined
 
+    # /alternative at this point contains files _keep, .permissions, _permissions, _permissions.yml
+    # /switch_tree contains _keep, _permissions, another_file
+    # We out of band add insert_file
+    # New tree should just be another_file
+    - name: Out of band add extra files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: "{{ item.state }}"
+      loop:
+        - {"path":"/alternative/insert_file","state":"touch"}
+        - {"path":"/alternative/insert_dir", "state":"directory"}
+        - {"path":"/alternative/insert_dir/inner_file","state":"touch"}
+
+
+    - name: Switch filedrop to a different source tree
+      filedrop:
+        src: switch_tree
+      register: switch_drop
+
+    - name: Grab the new tree
+      ansible.builtin.find:
+        path: /alternative/
+        hidden: True
+        file_type: any
+      register: switch_tree
+
+    - name: Enforce the managed directories - absolute contents
+      filedrop:
+        src: switch_tree
+        delete_unmanaged: True
+      register: switch_enforced_drop
+
+    - name: Grab the new tree
+      ansible.builtin.find:
+        path: /alternative/
+        hidden: True
+        file_type: any
+      register: switch_enforced_tree
+
+    - name: Test the list option tree results
+      ansible.builtin.assert:
+        that:
+          - True
+          - switch_drop.tree["/alternative"].unmanaged_contents | difference(["_keep", ".permissions", "_permissions", "_permissions.yml", "insert_file", "insert_dir"]) | length == 0
+          - switch_drop.tree["/alternative"].unmanaged_contents | length == 6
+          - switch_tree.files | length == 7  # 6 unmanaged + 1 managed
+          - ("/alternative/another_file" in switch_drop.tree)
+          - switch_drop.tree | length == 3  # / /alternative /alternative/another_file
+          - switch_enforced_drop.tree | length == 3
+          - switch_enforced_drop.tree["/alternative"].unmanaged_contents | difference(["_keep", ".permissions", "_permissions", "_permissions.yml", "insert_file", "insert_dir"]) | length == 0
+          - switch_enforced_drop.tree["/alternative"].unmanaged_contents | length == 6
+          - switch_enforced_tree.files | length == 1
+          - switch_enforced_tree.files[0]["path"] == "/alternative/another_file"
+
+
     # async tests, just want to ensure nothing weird happens
     # async isn't supported - blocked
 #    - name: Delete dumped directory - start from blank slate
@@ -355,6 +410,8 @@
         #   Change source directory - walk the option tree?
         #
         # TODO: Test we modify write protected files
+
+        
   handlers:
     - name: Note1
       ansible.builtin.set_fact:

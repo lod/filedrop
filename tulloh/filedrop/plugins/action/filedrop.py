@@ -74,11 +74,18 @@ options:
         - The file may specify the owner, group, mode permissions or notify triggers in the contents.  This can be either a yaml or json format.
         - This can be either a filename string or a list of filename strings.
         - Setting this to blank will prevent the directory_management_file functionality.
+    delete_unmanaged:
+        description:
+        - Deletes unmanaged (unknown) files and directories inside managed directories.
+        - For example if this role manages rsyslog then by setting delete_unmanaged and declaring /etc/rsyslog.d/ to be a managed folder then any additional unknown files in /etc/rsyslog.d/ will be deleted. This ensures that the configuration is fully managed and matches the intent.
 
 Note that in the event of a failure processing will continue with the rest of the tree.
 The final status will be failure and the msg will reference all the failed elements.
 
-TODO: Document notification system
+TODO:
+* Document notification system
+* Document tree, and unmanaged_contents field
+     
 
 WARNING: Using the standard task based notification system on this task will overwrite the custom notifications returned by this task.  They cannot both be used together.
 
@@ -106,13 +113,15 @@ class Options:
         else:
             self.notify = set(self.notify) # Convert lists, interables, etc.
 
-# TODO: List unmanaged files in managed directory
-# TODO: Option - delete unmanaged files in managed directory
+# TODO: Allow delete unmanaged files to be set on a per-directory basis
 
 # TODO: Do a side effect scenario, apply role, local changes, apply role
 
 # TODO: Can mode not be numbers?  Should we support that?
 
+# TODO: Figure out how symlinks work, especially symlinks out of the tree
+
+# TODO: Could optimize by sending bulk requests, requires custom client side module
 
 class ActionModule(ActionBase):
     _supports_async = False  # Make the default explicit
@@ -142,6 +151,9 @@ class ActionModule(ActionBase):
 
         # Init is called for each task and for each host in that task.
         # So a playbook with two hosts and two identical task calls gets 4x inits and 4x runs
+        # Why have both?
+        # 
+        # We don't have task_vars yet, no real setup is possible
 
     def run(
         self,
@@ -175,6 +187,8 @@ class ActionModule(ActionBase):
                 "_permissions.yml",
             ],
         )
+
+        delete_unmanaged: bool = self._task.args.get("delete_unmanaged", False)
 
         # task arg is list, dict, or ansible.parsing.yaml.objects.AnsibleUnicode
         # We support single or multimember options for directory_permission_files and ignore_file
@@ -218,9 +232,8 @@ class ActionModule(ActionBase):
         for root, dirs, files in source_path.walk(top_down=True, follow_symlinks=True):
             remote_base = "/" / root.relative_to(source_path)
             Display().vvv(f"TT {tree[remote_base]}")
-            directory_perms = Options(
-                **{k: tree[remote_base][k] for k in ("owner", "group", "mode")},
-            )
+            directory_entry = tree[remote_base]
+            directory_perms = Options(**{k: directory_entry[k] for k in ("owner", "group", "mode")})
             for dirname in dirs:
                 local_path = root / dirname
                 remote_path = remote_base / dirname
@@ -244,6 +257,7 @@ class ActionModule(ActionBase):
                 )
                 tree[remote_path]["managed"] = options is not None
             for filename in files:
+                # contents
                 if filename in [*self.ignore_files, *self.permission_files]:
                     Display().vvv(f"Ignoring file {remote_base / filename}")
                     continue
@@ -274,7 +288,14 @@ class ActionModule(ActionBase):
                         remote_path,
                         options,
                     )
-                # TODO: Figure out how symlinks work, especially symlinks out of the tree
+
+            unmanaged_paths = set(directory_entry.get("remote_contents_path",[])) - set(tree.keys())
+            directory_entry["unmanaged_contents"] = [ p.name for p in unmanaged_paths ]
+            if delete_unmanaged:
+                # TODO: check and changed flags, and notify triggers based on the directory
+                for p in unmanaged_paths:
+                    self.delete_action(p)
+
 
         Display().vvv(f"Raw output tree {tree}")
         # Process all the return details to build out return tree
@@ -290,7 +311,8 @@ class ActionModule(ActionBase):
             "size",
             "checksum",
             "managed",
-            "notify"
+            "notify",
+            "unmanaged_contents"
         ]
         ret.update(
             {
@@ -322,7 +344,6 @@ class ActionModule(ActionBase):
         local_root: Path,
         options: Options | None,
     ) -> dict[str, str | int | bool]:
-        # TODO: Could optimize by sending bulk requests, requires custom client side module
         perm_dict = options.permission_dict() if options is not None else {}
         module_args = {"path": str(path), "state": "directory", **perm_dict}
 
@@ -346,6 +367,19 @@ class ActionModule(ActionBase):
         # Ansible handles notify at the task level, so we need to do it
         if file_return.get("changed"):
             file_return["notify"] = list(options.notify)
+
+        # If the directory is managed we want to get the contents
+        if options is not None:
+            find_return = cast(dict[str,Any],
+                self._execute_module(
+                    module_name="ansible.legacy.find",
+                    module_args={"paths":str(path),"hidden":True,"file_type":"any"},
+                    task_vars=self._task_vars,
+                ),
+            )
+            Display().vvv(f"FIND DIR  {find_return}")
+            file_return["remote_contents_path"] = [ Path(f["path"]) for f in find_return["files"] ]
+
 
         return file_return
 
@@ -434,6 +468,25 @@ class ActionModule(ActionBase):
             copy_return["notify"] = list(options.notify)
 
         return copy_return
+
+    def delete_action(self, remote_path: Path) -> None:
+        #ansible.builtin.file:
+        #state: absent
+        #path: /home/mydata/web/
+
+        del_return = cast(
+            dict[str, Any],
+            self._execute_module(
+                module_name="ansible.legacy.file",
+                module_args={"path":str(remote_path), "state":"absent"},
+                task_vars=self._task_vars,
+            ),
+        )
+        Display().vvv(f"DEL {del_return}")
+
+        # TODO: Check return to ensure that it worked
+
+
 
     def build_options(
         self,
