@@ -86,6 +86,7 @@ TODO:
 * Document notification system
 * Document tree, and unmanaged_contents field
 * The mode (however it is supplied) must be numeric
+* Document that symlinks are created as normal files
      
 
 WARNING: Using the standard task based notification system on this task will overwrite the custom notifications returned by this task.  They cannot both be used together.
@@ -117,8 +118,6 @@ class Options:
 # TODO: Allow delete unmanaged files to be set on a per-directory basis
 
 # TODO: Do a side effect scenario, apply role, local changes, apply role
-
-# TODO: Figure out how symlinks work, especially symlinks out of the tree
 
 # TODO: Could optimize by sending bulk requests, requires custom client side module
 

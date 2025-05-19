@@ -340,20 +340,33 @@
         file_type: any
       register: switch_enforced_tree
 
+    - name: Get linked file contents
+      ansible.builtin.slurp:
+        src: /alternative/linked_file
+      register: slurped_linked_file
+
+    - debug:
+        msg: "{{ switch_enforced_tree.files | map(attribute='path') }}"
+
+    - debug:
+        msg: "{{ switch_enforced_tree.files | map(attribute='path') | difference(['/alternative/another_file', '/alternative/linked_file']) }}"
+
     - name: Test the list option tree results
       ansible.builtin.assert:
         that:
           - True
           - switch_drop.tree["/alternative"].unmanaged_contents | difference(["_keep", ".permissions", "_permissions", "_permissions.yml", "insert_file", "insert_dir"]) | length == 0
           - switch_drop.tree["/alternative"].unmanaged_contents | length == 6
-          - switch_tree.files | length == 7  # 6 unmanaged + 1 managed
+          - switch_tree.files | length == 8  # 6 unmanaged + 2 managed
           - ("/alternative/another_file" in switch_drop.tree)
-          - switch_drop.tree | length == 3  # / /alternative /alternative/another_file
-          - switch_enforced_drop.tree | length == 3
+          - switch_drop.tree | length == 4  # / /alternative another_file linked_file
+          - switch_enforced_drop.tree | length == 4
           - switch_enforced_drop.tree["/alternative"].unmanaged_contents | difference(["_keep", ".permissions", "_permissions", "_permissions.yml", "insert_file", "insert_dir"]) | length == 0
           - switch_enforced_drop.tree["/alternative"].unmanaged_contents | length == 6
-          - switch_enforced_tree.files | length == 1
-          - switch_enforced_tree.files[0]["path"] == "/alternative/another_file"
+          - switch_enforced_tree.files | length == 2
+          - (switch_enforced_tree.files | map(attribute="path") | difference(["/alternative/another_file", "/alternative/linked_file"]) | length == 0)
+          # Testing symlinked file
+          - slurped_linked_file.content | b64decode == "SMITH\n"
 
 
     # async tests, just want to ensure nothing weird happens
