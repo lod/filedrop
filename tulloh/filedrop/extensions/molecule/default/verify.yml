@@ -71,6 +71,22 @@
           - tree["/dumped/d1/t1"].gr_name == "games"
           - tree["/dumped/d2/t1"].gr_name == "tty"
           - tree["/dumped/d3/t1"].gr_name == "tape"
+          # Directory permissions, no visibility to managed etc. at this stage
+          - tree["/dumped"].pw_name        == "root"
+          - tree["/dumped"].gr_name        == "root"
+          - tree["/dumped"].mode           == "0755"
+          - tree["/dumped/d1"].pw_name     == "root"
+          - tree["/dumped/d1"].gr_name     == "root"
+          - tree["/dumped/d1"].mode        == "0755"
+          - tree["/dumped/d2"].pw_name     == "root"
+          - tree["/dumped/d2"].gr_name     == "root"
+          - tree["/dumped/d2"].mode        == "0755"
+          - tree["/dumped/d3"].pw_name     == "sync"
+          - tree["/dumped/d3"].gr_name     == "tape"
+          - tree["/dumped/d3"].mode        == "0700"
+          - tree["/dumped/d3/d31"].pw_name == "sync"
+          - tree["/dumped/d3/d31"].gr_name == "video"
+          - tree["/dumped/d3/d31"].mode    == "0700"
           # Default ignore pattern, don't transfer .keep or _keep
           # But d2 contains [._]keep.j2, which does get transfered to become [._]keep
           - ("/dumped/d1/.keep" not in tree)
@@ -80,14 +96,19 @@
           # Inherit from mail/kmem from directory, with overwrites
           - tree["/dumped/d5"].pw_name == "mail"
           - tree["/dumped/d5"].gr_name == "kmem"
+          - tree["/dumped/d5"].mode == "0755"
           - tree["/dumped/d5/f1"].pw_name == "games"
           - tree["/dumped/d5/f1"].gr_name == "dialout"
+          - tree["/dumped/d5/f1"].mode == "0600"
           - tree["/dumped/d5/p1"].pw_name == "mail"
           - tree["/dumped/d5/p1"].gr_name == "kmem"
+          - tree["/dumped/d5/p1"].mode == "0644"
           - tree["/dumped/d5/p2"].pw_name == "games"
           - tree["/dumped/d5/p2"].gr_name == "tty"
+          - tree["/dumped/d5/p2"].mode == "0600"
           - tree["/dumped/d5/p3"].pw_name == "mail"
           - tree["/dumped/d5/p3"].gr_name == "kmem"
+          - tree["/dumped/d5/p3"].mode == "0644"
           # f2 is set to mode 467, but we overwrite the executable bit
           # Only d1/f2 is actually executable
           - tree["/dumped/d1/f2"].mode == "0577"
@@ -117,6 +138,10 @@
           - tree["/dumped/d4/d41/d411/d4111"].pw_name == "bin"
           - tree["/dumped/d4/d41/d411/d4111"].gr_name == "video"
           - tree["/dumped/d4/d41/d411/d4111"].mode == "4057"
+          # Inherit everything, nothing new
+          - tree["/dumped/d4/d41/d411/d4111/d11111"].pw_name == "bin"
+          - tree["/dumped/d4/d41/d411/d4111/d11111"].gr_name == "video"
+          - tree["/dumped/d4/d41/d411/d4111/d11111"].mode == "4057"
           # layer1 inherits from the directory
           - tree["/dumped/d4/d41/d411/d4111/layer1"].pw_name == "bin"
           - tree["/dumped/d4/d41/d411/d4111/layer1"].gr_name == "video"

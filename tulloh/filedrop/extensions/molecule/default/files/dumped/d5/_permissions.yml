@@ -1,1 +1,1 @@
-{"owner":"mail","group": "kmem"}
+{"owner":"mail","group": "kmem","delete_unmanaged":True}

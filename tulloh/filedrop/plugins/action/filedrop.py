@@ -85,8 +85,10 @@ The final status will be failure and the msg will reference all the failed eleme
 TODO:
 * Document notification system
 * Document tree, and unmanaged_contents field
+* Document delete unmanaged files to be set on a per-directory basis
 * The mode (however it is supplied) must be numeric
 * Document that symlinks are created as normal files
+* Could optimize by sending bulk requests, requires custom client side module
      
 
 WARNING: Using the standard task based notification system on this task will overwrite the custom notifications returned by this task.  They cannot both be used together.
@@ -100,6 +102,8 @@ class Options:
     group: str | None = None
     mode: str | None = None
     notify: set[str] = dataclasses.field(default_factory=set)
+    delete_unmanaged: bool | None = None  # Tristate yes/no/unset (unset is inherit/global)
+
 
     # JSON friendly dict
     def asdict(self) -> dict[str, str]:
@@ -115,11 +119,9 @@ class Options:
         else:
             self.notify = set(self.notify) # Convert lists, interables, etc.
 
-# TODO: Allow delete unmanaged files to be set on a per-directory basis
 
 # TODO: Do a side effect scenario, apply role, local changes, apply role
 
-# TODO: Could optimize by sending bulk requests, requires custom client side module
 
 class ActionModule(ActionBase):
     _supports_async = False  # Make the default explicit
@@ -186,7 +188,7 @@ class ActionModule(ActionBase):
             ],
         )
 
-        delete_unmanaged: bool = self._task.args.get("delete_unmanaged", False)
+        self.delete_unmanaged: bool = self._task.args.get("delete_unmanaged", False)
 
         # task arg is list, dict, or ansible.parsing.yaml.objects.AnsibleUnicode
         # We support single or multimember options for directory_permission_files and ignore_file
@@ -289,7 +291,7 @@ class ActionModule(ActionBase):
 
             unmanaged_paths = set(directory_entry.get("remote_contents_path",[])) - set(tree.keys())
             directory_entry["unmanaged_contents"] = [ p.name for p in unmanaged_paths ]
-            if delete_unmanaged:
+            if self.delete_unmanaged:
                 # TODO: check and changed flags, and notify triggers based on the directory
                 for p in unmanaged_paths:
                     self.delete_action(p)
@@ -309,6 +311,7 @@ class ActionModule(ActionBase):
             "size",
             "checksum",
             "managed",
+            "delete_unmanaged",
             "notify",
             "unmanaged_contents"
         ]
@@ -367,6 +370,7 @@ class ActionModule(ActionBase):
             file_return["notify"] = list(options.notify)
 
         # If the directory is managed we want to get the contents
+        file_return["managed"] = (options is not None)
         if options is not None:
             find_return = cast(dict[str,Any],
                 self._execute_module(
@@ -378,6 +382,7 @@ class ActionModule(ActionBase):
             Display().vvv(f"FIND DIR  {find_return}")
             file_return["remote_contents_path"] = [ Path(f["path"]) for f in find_return["files"] ]
 
+        file_return["delete_unmanaged"] = self.delete_unmanaged if options is None or options.delete_unmanaged is None else options.delete_unmanaged
 
         return file_return
 
