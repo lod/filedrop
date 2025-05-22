@@ -139,9 +139,9 @@
           - tree["/dumped/d4/d41/d411/d4111"].gr_name == "video"
           - tree["/dumped/d4/d41/d411/d4111"].mode == "4057"
           # Inherit everything, nothing new
-          - tree["/dumped/d4/d41/d411/d4111/d11111"].pw_name == "bin"
-          - tree["/dumped/d4/d41/d411/d4111/d11111"].gr_name == "video"
-          - tree["/dumped/d4/d41/d411/d4111/d11111"].mode == "4057"
+          - tree["/dumped/d4/d41/d411/d4111/d41111"].pw_name == "bin"
+          - tree["/dumped/d4/d41/d411/d4111/d41111"].gr_name == "video"
+          - tree["/dumped/d4/d41/d411/d4111/d41111"].mode == "4057"
           # layer1 inherits from the directory
           - tree["/dumped/d4/d41/d411/d4111/layer1"].pw_name == "bin"
           - tree["/dumped/d4/d41/d411/d4111/layer1"].gr_name == "video"

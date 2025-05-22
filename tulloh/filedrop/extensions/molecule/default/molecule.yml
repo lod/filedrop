@@ -1,9 +1,6 @@
 ---
 dependency:
   name: galaxy
-  options:
-    role-file: requirements.yml
-    requirements-file: requirements.yml
 driver:
   # Podman driver doesn't support pipelining, which we want to focus on
   name: docker
@@ -15,10 +12,10 @@ provisioner:
 verifier:
   name: ansible
 platforms:
-  #- name: centos
-  #  image: quay.io/centos/centos:stream9
-  #  pre_build_image: true
-  #  cgroupns_mode: host
+  - name: centos
+    image: quay.io/centos/centos:stream9
+    pre_build_image: true
+    cgroupns_mode: host
   - name: bookworm
     image: docker.io/python:3.13.3-bookworm
     pre_build_image: true

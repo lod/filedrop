@@ -93,27 +93,28 @@
           - dropped.tree["/dumped/d3/d31"].managed == True
           # /etc/ should always exist, no initial creation
           - dropped.tree["/etc"].managed                                      == False
-          - dropped.tree["/dumped"].managed                                   == False
-          - dropped.tree["/dumped"].delete_unmanaged                          == False
-          - dropped.tree["/dumped/d1"].managed                                == False
-          - dropped.tree["/dumped/d1"].delete_unmanaged                       == False
-          - dropped.tree["/dumped/d2"].managed                                == False
-          - dropped.tree["/dumped/d2"].delete_unmanaged                       == False
-          - dropped.tree["/dumped/d3"].managed                                == False
-          - dropped.tree["/dumped/d3"].delete_unmanaged                       == False
+          # Managed on the first pass (creation), not the second
+          - dropped.tree["/dumped"].managed ==  dropped.tree["/dumped"].changed
+          - dropped.tree["/dumped/d1"].managed ==  dropped.tree["/dumped/d1"].changed
+          - dropped.tree["/dumped/d2"].managed ==  dropped.tree["/dumped/d2"].changed
+          - dropped.tree["/dumped/d3"].managed ==  dropped.tree["/dumped/d3"].changed
           - dropped.tree["/dumped/d3/d31"].managed                            == True
-          - dropped.tree["/dumped/d3/d31"].delete_unmanaged                   == False
           - dropped.tree["/dumped/d4"].managed                                == True
-          - dropped.tree["/dumped/d4"].delete_unmanaged                       == False
           - dropped.tree["/dumped/d4/d41"].managed                            == True
-          - dropped.tree["/dumped/d4/d41"].delete_unmanaged                   == False
           - dropped.tree["/dumped/d4/d41/d411"].managed                       == True
-          - dropped.tree["/dumped/d4/d41/d411"].delete_unmanaged              == True
           - dropped.tree["/dumped/d4/d41/d411/d4111"].managed                 == True
-          - dropped.tree["/dumped/d4/d41/d411/d4111"].delete_unmanaged        == False
           - dropped.tree["/dumped/d4/d41/d411/d4111/d41111"].managed          == True
-          - dropped.tree["/dumped/d4/d41/d411/d4111/d41111"].delete_unmanaged == False
           - dropped.tree["/dumped/d5"].managed                                == True
+          - dropped.tree["/dumped"].delete_unmanaged                          == False
+          - dropped.tree["/dumped/d1"].delete_unmanaged                       == False
+          - dropped.tree["/dumped/d2"].delete_unmanaged                       == False
+          - dropped.tree["/dumped/d3"].delete_unmanaged                       == False
+          - dropped.tree["/dumped/d3/d31"].delete_unmanaged                   == False
+          - dropped.tree["/dumped/d4"].delete_unmanaged                       == False
+          - dropped.tree["/dumped/d4/d41"].delete_unmanaged                   == False
+          - dropped.tree["/dumped/d4/d41/d411"].delete_unmanaged              == True
+          - dropped.tree["/dumped/d4/d41/d411/d4111"].delete_unmanaged        == False
+          - dropped.tree["/dumped/d4/d41/d411/d4111/d41111"].delete_unmanaged == False
           - dropped.tree["/dumped/d5"].delete_unmanaged                       == True
 
     - name: Test handler notifications fired
