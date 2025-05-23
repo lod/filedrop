@@ -1,3 +1,3 @@
-# Ansible Collection - tulloh.filedrop
+# Ansible Collection - lod.filedrop
 
 Documentation for the collection.
