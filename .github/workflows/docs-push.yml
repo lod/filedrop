@@ -40,19 +40,60 @@ jobs:
       init-extra-html-theme-options: |
         documentation_home_url=https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/branch/main/
 
-  publish-docs-gh-pages:
-    # for now we won't run this on forks
+  publish-gh-pages:
+    # Based on ansible-community/github-docs-build/.github/workflows/_shared-docs-build-publish-gh-pages.yml
+    name: Publish to GitHub Pages
     if: github.repository == 'lod/filedrop'
+    needs: [build-docs]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       pages: write
       id-token: write
-    needs: [build-docs]
-    name: Publish Ansible Docs
-    uses: ansible-community/github-docs-build/.github/workflows/_shared-docs-build-publish-gh-pages.yml@fe35f67c3bcfe6b8bdbac5237063423a78161152
-    with:
-      artifact-name: ${{ needs.build-docs.outputs.artifact-name }}
-      publish-gh-pages-branch: true
-      destination-dir: /
     secrets:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      url: ${{ steps.vars.outputs.url }}
+    steps:
+      - name: Retrieve rendered docs
+        id: download
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build-docs.outputs.artifact-name }}
+          path: html
+
+      - name: Publish
+        # this action uses a token with contents:write, pinning to commit
+        uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
+        with:
+          github_token: ${{ secrets.GH_TOKEN }}
+          publish_dir: html
+          keep_files: false  # with destination_dir, this applies only to the chosen dir
+          destination_dir: # root
+          # NOTE: do not use the force_orphan (keep_history) option.
+          # It does not yet work correctly with keep_files and destination_dir:
+          # - https://github.com/peaceiris/actions-gh-pages/issues/455
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages-checkout
+          token: ${{ secrets.GH_TOKEN }}
+          persist-credentials: false
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Upload gh-pages branch as artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: gh-pages-checkout
+
+      - name: Deploy gh-pages branch to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          token: ${{ secrets.GH_TOKEN }}
