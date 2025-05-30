@@ -131,10 +131,10 @@ notes:
 
 EXAMPLES = r"""
 - name: Transfer from files to remote host
-  lod.filedrop:
+  lod.filedrop.filedrop:
 
 - name: Transfer from files and restart ssh if required
-  lod.filedrop:
+  lod.filedrop.filedrop:
     path_re:
       ssh:
         notify: Restart sshd
