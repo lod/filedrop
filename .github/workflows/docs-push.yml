@@ -50,8 +50,6 @@ jobs:
       contents: write
       pages: write
       id-token: write
-    secrets:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       url: ${{ steps.vars.outputs.url }}
     steps:
@@ -66,7 +64,7 @@ jobs:
         # this action uses a token with contents:write, pinning to commit
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
         with:
-          github_token: ${{ secrets.GH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: html
           keep_files: false  # with destination_dir, this applies only to the chosen dir
           destination_dir: # root
@@ -79,13 +77,13 @@ jobs:
         with:
           ref: gh-pages
           path: gh-pages-checkout
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: false
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
         with:
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload gh-pages branch as artifact
         uses: actions/upload-pages-artifact@v3
@@ -96,4 +94,4 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
         with:
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
