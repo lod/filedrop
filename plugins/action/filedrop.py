@@ -1,3 +1,5 @@
+# Documentation for this action is in plugins/modules/filedrop.py
+
 import dataclasses
 import re
 import stat
@@ -21,80 +23,6 @@ from ansible.plugins.connection import ConnectionBase
 from ansible.template import Templar, generate_ansible_template_vars
 from ansible.utils.display import Display
 
-DOCUMENTATION = r"""
----
-module: filedrop
-short_description: Drop a directory tree of files onto the remote system
-description:
-    - Bob
-    - Smith
-
-File permissions are ...
-1. The executable bit is taken from the file, this bit is maintained by git, this is the only permission information retained by git. The executable bit is set whenever the read bit is set.
-2. The permissions are all taken from the parent directory.
-3. The regex dictionary parameters owner_re, group_re and mode_re are matched against the full file path.  This allows broad matches.
-
-Directory permissions follow the same pattern as files but are a little more complex.  We have a fundamental problem that when looking at the existing directory /var/spool/postfix it is unclear which directory we should be controlling the permissions and ownership for, overwriting the permissions of /var/ by accident would be undesirable. The conservative option, only controlling permissions on directory creation, is also undesirable. We balance this by requiring users to be explicit about which directories are controlled.
-
-The following process is used to determine if a folder should be managed.
-
-1. If a parent folder is managed then all folders within it are also managed.
-2. Folders in the filedrop tree may contain a file, one of .permissions, _permissions, .permissions.yml, _permissions.yml (this is the default set, it is configurable via the directory_management_file option).  If this file exists then the directory is controlled. This is the recommended pattern to use.
-3. If a path_re expression contains a / then it is considered a directory targeting regular expression.  For matching all directories end in a / so they can be differentiated, for example /etc/. If a directory targeting regular expression matches the directory then it is managed.  This does not have to match at the end, for example "/etc/" will match /etc/ and all folders within /etc/, more specific regex such as "/etc/$" can be used if this is undesirable.  (NOTE: Would contains / be better?)
-4. If the folder does not yet exist on the remote system it will be treated as managed for the creation.  Once created it will not be managed.
-
-A managed folder follows similar permission rules to files.
-
-1. The permissions are all taken from the parent directory.
-2. The path_re regex keys are matched against the path.  Note all keys are matched, not just ones that end in /.
-3. The directory_management_file may contain yaml definitions of the owner, group or mode.
-
-
-
-options:
-    path_re:
-        description:
-        - Set file permissions using file regular expressions.
-        - This is a two level dictionary, the first level key is a regular expression.
-        - Any path which matches the regular expression (using re.search()) has the permissions set as specified.
-        - Directories end in / for match reasons, this allows differentiation between files or directories.
-        - The value is a dictionary containing one or more of owner, group, mode or notify.
-        - Partial applications also work, for example if only owner is specified then the group and mode are unchanged.
-        - The ansible.builtin.copy rules also apply, numeric owners are user IDs and not specifying an owner means that the current user is used or existing owner if running as root.
-        - The notify field may be a single entry or a list of entries.
-    ignore_file:
-        description:
-        - File name to ignore. This is mostly useful for creating empty directories without git cleaning them up.
-        - This can be either a filename string or a list of filename strings.
-        - By default both .keep and _keep are ignored. This allows for a hidden or visible file based on your preferences.
-        - Setting this to blank will prevent any files from being ignored.
-    directory_management_file:
-        description:
-        - File name which specifies that the containing directory is managed.
-        - The file may specify the owner, group, mode permissions or notify triggers in the contents.  This can be either a yaml or json format.
-        - This can be either a filename string or a list of filename strings.
-        - Setting this to blank will prevent the directory_management_file functionality.
-    delete_unmanaged:
-        description:
-        - Deletes unmanaged (unknown) files and directories inside managed directories.
-        - For example if this role manages rsyslog then by setting delete_unmanaged and declaring /etc/rsyslog.d/ to be a managed folder then any additional unknown files in /etc/rsyslog.d/ will be deleted. This ensures that the configuration is fully managed and matches the intent.
-
-Note that in the event of a failure processing will continue with the rest of the tree.
-The final status will be failure and the msg will reference all the failed elements.
-
-TODO:
-* Document notification system
-* Document tree, and unmanaged_contents field
-* Document delete unmanaged files to be set on a per-directory basis
-* The mode (however it is supplied) must be numeric
-* Document that symlinks are created as normal files
-* Could optimize by sending bulk requests, requires custom client side module
-     
-
-WARNING: Using the standard task based notification system on this task will overwrite the custom notifications returned by this task.  They cannot both be used together.
-
-"""
-
 
 @dataclasses.dataclass(kw_only=True, slots=True)
 class Options:
@@ -102,25 +30,34 @@ class Options:
     group: str | None = None
     mode: str | None = None
     notify: set[str] = dataclasses.field(default_factory=set)
-    delete_unmanaged: bool | None = None  # Tristate yes/no/unset (unset is inherit/global)
-
+    delete_unmanaged: bool | None = (
+        None  # Tristate yes/no/unset (unset is inherit/global)
+    )
 
     # JSON friendly dict
     def asdict(self) -> dict[str, str]:
-        return {k: (v if not isinstance(v, set) else list(v)) for k, v in dataclasses.asdict(self).items() if v is not None}
+        return {
+            k: (v if not isinstance(v, set) else list(v))
+            for k, v in dataclasses.asdict(self).items()
+            if v is not None
+        }
 
-    def permission_dict(self) -> dict[str,str]:
-        return {k: v for k, v in dataclasses.asdict(self).items() if v is not None and k in ["owner", "group", "mode"]}
-
+    def permission_dict(self) -> dict[str, str]:
+        return {
+            k: v
+            for k, v in dataclasses.asdict(self).items()
+            if v is not None and k in ["owner", "group", "mode"]
+        }
 
     def __post_init__(self):
         if isinstance(self.notify, str):
             self.notify = {self.notify}  # Allow dodgy string initialisation
         else:
-            self.notify = set(self.notify) # Convert lists, interables, etc.
+            self.notify = set(self.notify)  # Convert lists, interables, etc.
 
 
 # TODO: Do a side effect scenario, apply role, local changes, apply role
+# TODO: I think copy supports "0644" and 0644, should test for us
 
 
 class ActionModule(ActionBase):
@@ -152,7 +89,7 @@ class ActionModule(ActionBase):
         # Init is called for each task and for each host in that task.
         # So a playbook with two hosts and two identical task calls gets 4x inits and 4x runs
         # Why have both?
-        # 
+        #
         # We don't have task_vars yet, no real setup is possible
 
     def run(
@@ -185,6 +122,8 @@ class ActionModule(ActionBase):
                 "_permissions",
                 ".permissions.yml",
                 "_permissions.yml",
+                ".permissions.json",
+                "_permissions.json",
             ],
         )
 
@@ -233,16 +172,14 @@ class ActionModule(ActionBase):
             remote_base = "/" / root.relative_to(source_path)
             Display().vvv(f"TT {tree[remote_base]}")
             directory_entry = tree[remote_base]
-            directory_perms = Options(**{k: directory_entry[k] for k in ("owner", "group", "mode")})
+            directory_perms = Options(
+                **{k: directory_entry[k] for k in ("owner", "group", "mode")}
+            )
             for dirname in dirs:
                 local_path = root / dirname
                 remote_path = remote_base / dirname
                 Display().vvv(f"Processing directory {remote_path}")
-                if self.is_managed_directory(
-                    local_path,
-                    remote_path,
-                    directory_entry
-                ):
+                if self.is_managed_directory(local_path, remote_path, directory_entry):
                     options = self.build_options(
                         local_path,
                         remote_path,
@@ -289,13 +226,14 @@ class ActionModule(ActionBase):
                         options,
                     )
 
-            unmanaged_paths = set(directory_entry.get("remote_contents_path",[])) - set(tree.keys())
-            directory_entry["unmanaged_contents"] = [ p.name for p in unmanaged_paths ]
+            unmanaged_paths = set(
+                directory_entry.get("remote_contents_path", [])
+            ) - set(tree.keys())
+            directory_entry["unmanaged_contents"] = [p.name for p in unmanaged_paths]
             if self.delete_unmanaged:
                 # TODO: check and changed flags, and notify triggers based on the directory
                 for p in unmanaged_paths:
                     self.delete_action(p)
-
 
         Display().vvv(f"Raw output tree {tree}")
         # Process all the return details to build out return tree
@@ -313,7 +251,7 @@ class ActionModule(ActionBase):
             "managed",
             "delete_unmanaged",
             "notify",
-            "unmanaged_contents"
+            "unmanaged_contents",
         ]
         ret.update(
             {
@@ -328,14 +266,16 @@ class ActionModule(ActionBase):
                     str(p): {e: v.get(e) for e in tree_elements}
                     for p, v in tree.items()
                 },
-                "notify": list({n for p, v in tree.items() for n in v.get("notify",[])}),
-                "_ansible_notify": list({n for p, v in tree.items() for n in v.get("notify",[])}),
-
+                "notify": list(
+                    {n for p, v in tree.items() for n in v.get("notify", [])}
+                ),
+                "_ansible_notify": list(
+                    {n for p, v in tree.items() for n in v.get("notify", [])}
+                ),
             },
         )
         if ret["failed"]:
             ret["msg"] = {str(p): r["msg"] for p, r in tree.items() if "msg" in r}
-        
 
         return ret
 
@@ -370,19 +310,30 @@ class ActionModule(ActionBase):
             file_return["notify"] = list(options.notify)
 
         # If the directory is managed we want to get the contents
-        file_return["managed"] = (options is not None)
+        file_return["managed"] = options is not None
         if options is not None:
-            find_return = cast(dict[str,Any],
+            find_return = cast(
+                dict[str, Any],
                 self._execute_module(
                     module_name="ansible.legacy.find",
-                    module_args={"paths":str(path),"hidden":True,"file_type":"any"},
+                    module_args={
+                        "paths": str(path),
+                        "hidden": True,
+                        "file_type": "any",
+                    },
                     task_vars=self._task_vars,
                 ),
             )
             Display().vvv(f"FIND DIR  {find_return}")
-            file_return["remote_contents_path"] = [ Path(f["path"]) for f in find_return["files"] ]
+            file_return["remote_contents_path"] = [
+                Path(f["path"]) for f in find_return["files"]
+            ]
 
-        file_return["delete_unmanaged"] = self.delete_unmanaged if options is None or options.delete_unmanaged is None else options.delete_unmanaged
+        file_return["delete_unmanaged"] = (
+            self.delete_unmanaged
+            if options is None or options.delete_unmanaged is None
+            else options.delete_unmanaged
+        )
 
         return file_return
 
@@ -473,23 +424,21 @@ class ActionModule(ActionBase):
         return copy_return
 
     def delete_action(self, remote_path: Path) -> None:
-        #ansible.builtin.file:
-        #state: absent
-        #path: /home/mydata/web/
+        # ansible.builtin.file:
+        # state: absent
+        # path: /home/mydata/web/
 
         del_return = cast(
             dict[str, Any],
             self._execute_module(
                 module_name="ansible.legacy.file",
-                module_args={"path":str(remote_path), "state":"absent"},
+                module_args={"path": str(remote_path), "state": "absent"},
                 task_vars=self._task_vars,
             ),
         )
         Display().vvv(f"DEL {del_return}")
 
         # TODO: Check return to ensure that it worked
-
-
 
     def build_options(
         self,
@@ -518,19 +467,27 @@ class ActionModule(ActionBase):
                 perm_layers.maps.insert(0, potential.asdict())
 
         if local_path.is_dir():
-            for child in local_path.iterdir():
-                if child.name in self.permission_files and child.is_file():
-                    # TODO: Test bad/rubbish files, ensure we fail gracefully
-                    # Note: The from_yaml call actually loads both yaml and json data
-                    from_permfile = from_yaml(child.read_text())
-                    # Empty files return None
-                    if from_permfile is not None:
-                        perm_layers.maps.insert(0, Options(**from_permfile).asdict())
+            for child in sorted(
+                [
+                    c
+                    for c in local_path.iterdir()
+                    if c.name in self.permission_files and c.is_file()
+                ]
+            ):
+                # TODO: Test bad/rubbish files, ensure we fail gracefully
+                # TODO: Test sorting
+                # Note: The from_yaml call actually loads both yaml and json data
+                from_permfile = from_yaml(child.read_text())
+                # Empty files return None
+                if from_permfile is not None:
+                    perm_layers.maps.insert(0, Options(**from_permfile).asdict())
 
         blend = Options(**dict(perm_layers))
 
         # Notifications combine, are not replaced by higher layers
-        blend.notify = {n for layer in perm_layers.maps for n in layer.get("notify",[])}
+        blend.notify = {
+            n for layer in perm_layers.maps for n in layer.get("notify", [])
+        }
 
         # Set the mode executable bits, based on the owner bit of the file
         want_exec = local_path.stat().st_mode & stat.S_IXUSR > 0
@@ -553,7 +510,7 @@ class ActionModule(ActionBase):
         self,
         local_path: Path,
         remote_path: Path,
-        parent_directory_details: dict[str, Any]
+        parent_directory_details: dict[str, Any],
     ) -> bool:
         # 1. If the directory ancenstor is managed
         # This doesn't have to be an exhaustive search, we just need to check one level up
