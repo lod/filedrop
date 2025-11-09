@@ -120,11 +120,12 @@ options:
 
 notes:
   - In the event of a failure processing will continue with the rest of the tree. The final status will be failure and the failure msg will reference all the failed elements.
+  - Symlinks in the source tree are interpreted as normal files and will result in a file on the destination system containing the contents, not a symlink.
+  - The github repository molecule directory shows examples of all of the options and directory files being tested including in some extreme ways.
   - WARNING - Using the standard task based notification system on this task will overwrite the custom notifications returned by this task.  They cannot both be used together.
 """
 
 # TODO:
-#   Document that symlinks are created as normal files
 #   Could optimize by sending bulk requests, requires custom client side module
 #   Add examples and return details
 
@@ -139,8 +140,125 @@ EXAMPLES = r"""
       ssh:
         notify: Restart sshd
 
+- name: Don't actually transfer, just show what would be done
+  lod.filedrop.filedrop:
+  check_mode: true
+  diff: true
+  register: filedrop_diff
 
+- name: Set more options
+  lod.filedrop.filedrop:
+    src: custom_tree
+    ignore_file: _permissions
+    directory_management_file:
+      - directory_stuff
+      - .hidden_directory_stuff
+    delete_unmanaged: True
+    path_re:
+      file1:
+        owner: games
+        group: dialout
+        mode: '0600'
+        notify: f1
+      🎩:
+        group: hatters
+      ^/etc/specific/path$:
+        owner: nobody
+        group: video
+        mode: '0600'
+        notify:
+          - specific 1
+          - specific 2
+      ^/var/meh/$:
+        delete_unmanaged: False
 """
 
 RETURN = r"""
+tree:
+    description: Dictionary containing all of the processed directories and files.
+    returned: always
+    type: dict
+    contains:
+      path:
+        description: The full path string
+        returned: always
+        type: str
+        sample: /etc/apt/sources.list.d/more.sources
+      changed:
+        description: If this specific path changed
+        returned: always
+        type: bool
+        sample: True
+      failed:
+        description: If this specific path failed
+        returned: always
+        type: bool
+        sample: True
+      uid:
+        description: UID of the path after execution
+        returned: always
+        type: int
+        sample: 1000
+      gid:
+        description: GID of the path after execution
+        returned: always
+        type: int
+        sample: 23
+      owner:
+        description: Owner of the path after execution
+        returned: always
+        type: str
+        sample: root
+      group:
+        description: Group of the path after execution
+        returned: always
+        type: str
+        sample: audio
+      mode:
+        description: Permissions of the path after execution
+        returned: always
+        type: str
+        sample: "0644"
+      size:
+        description: Size of the path in bytes
+        returned: always
+        type: int
+        sample: 1234
+      checksum:
+        description: SHA1 checksum of the file after execution
+        returned: always
+        type: str
+        sample: "5fe9b424a895c7036c1631f04cba7418d3dff45c"
+      managed:
+        description: If the path is a managed directory
+        returned: always
+        type: bool
+        sample: True
+      delete_unmanaged:
+        description: If the delete_unmanaged option has been set for this specific path
+        returned: always
+        type: bool
+        sample: False
+      notify:
+        description: List of the notifications configured for this path
+        returned: always
+        type: list
+        sample: ["Restart Bob", "Reload Jim"]
+      unmanaged_contents:
+        description: List of unmanaged paths inside this directory. If the delete_unmanaged option is set then these paths will have been removed.
+        returned: always
+        type: list
+        sample: ["afile", "adirectory", "another_file"]
+
+changed:
+    description: The normal module changed return. If any path changed then the module will return changed.  The tree dictionary can be examined to determine which path triggered the state.
+    returned: always
+    type: bool
+    sample: True
+
+failed:
+    description: The normal module failed return. If any path changed then the module will return changed.  The tree dictionary can be examined to determine which path triggered the state.
+    returned: always
+    type: bool
+    sample: True
 """
