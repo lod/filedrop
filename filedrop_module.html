@@ -4,7 +4,7 @@
 <html class="writer-html5" lang="en" data-content_root="./">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta content="2.16.3" name="antsibull-docs" />
+<meta content="2.22.0" name="antsibull-docs" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>lod.filedrop.filedrop module – Drop a tree of files onto the remote system &mdash; lod.filedrop  documentation</title>
@@ -77,7 +77,8 @@
 <li class="toctree-l2"><a class="reference internal" href="#synopsis">Synopsis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#parameters">Parameters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#notes">Notes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#examples">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#examples">Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#return-values">Return Values</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#authors">Authors</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#collection-links">Collection links</a></li>
 </ul>
@@ -129,6 +130,7 @@ To check whether it is installed, run <code class="code docutils literal notrans
 <li><p><a class="reference internal" href="#parameters" id="id2">Parameters</a></p></li>
 <li><p><a class="reference internal" href="#notes" id="id3">Notes</a></p></li>
 <li><p><a class="reference internal" href="#examples" id="id4">Examples</a></p></li>
+<li><p><a class="reference internal" href="#return-values" id="id5">Return Values</a></p></li>
 </ul>
 </nav>
 <section id="synopsis">
@@ -331,6 +333,8 @@ To check whether it is installed, run <code class="code docutils literal notrans
 <p class="admonition-title">Note</p>
 <ul class="simple">
 <li><p>In the event of a failure processing will continue with the rest of the tree. The final status will be failure and the failure msg will reference all the failed elements.</p></li>
+<li><p>Symlinks in the source tree are interpreted as normal files and will result in a file on the destination system containing the contents, not a symlink.</p></li>
+<li><p>The github repository molecule directory shows examples of all of the options and directory files being tested including in some extreme ways.</p></li>
 <li><p>WARNING - Using the standard task based notification system on this task will overwrite the custom notifications returned by this task. They cannot both be used together.</p></li>
 </ul>
 </div>
@@ -345,8 +349,205 @@ To check whether it is installed, run <code class="code docutils literal notrans
 <span class="w">    </span><span class="nt">path_re</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">ssh</span><span class="p">:</span>
 <span class="w">        </span><span class="nt">notify</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Restart sshd</span>
+
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Don&#39;t actually transfer, just show what would be done</span>
+<span class="w">  </span><span class="nt">lod.filedrop.filedrop</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">check_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">diff</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">register</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">filedrop_diff</span>
+
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Set more options</span>
+<span class="w">  </span><span class="nt">lod.filedrop.filedrop</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom_tree</span>
+<span class="w">    </span><span class="nt">ignore_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">_permissions</span>
+<span class="w">    </span><span class="nt">directory_management_file</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">directory_stuff</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.hidden_directory_stuff</span>
+<span class="w">    </span><span class="nt">delete_unmanaged</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
+<span class="w">    </span><span class="nt">path_re</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">file1</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">games</span>
+<span class="w">        </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dialout</span>
+<span class="w">        </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;0600&#39;</span>
+<span class="w">        </span><span class="nt">notify</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">f1</span>
+<span class="w">      </span><span class="nt">🎩</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hatters</span>
+<span class="w">      </span><span class="nt">^/etc/specific/path$</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nobody</span>
+<span class="w">        </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">video</span>
+<span class="w">        </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;0600&#39;</span>
+<span class="w">        </span><span class="nt">notify</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">specific 1</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">specific 2</span>
+<span class="w">      </span><span class="nt">^/var/meh/$</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">delete_unmanaged</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">False</span>
 </pre></div>
 </div>
+</section>
+<section id="return-values">
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Return Values</a><a class="headerlink" href="#return-values" title="Link to this heading"></a></h2>
+<p>Common return values are documented <a class="reference external" href="https://docs.ansible.com/ansible/devel/reference_appendices/common_return_values.html#common-return-values" title="(in Ansible vdevel)"><span class="xref std std-ref">here</span></a>, the following are the fields unique to this module:</p>
+<table class="longtable ansible-option-table docutils align-default" style="width: 100%">
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-changed"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-changed"><strong>changed</strong></p>
+<a class="ansibleOptionLink" href="#return-changed" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">boolean</span></p>
+</div></td>
+<td><div class="ansible-option-cell"><p>The normal module changed return. If any path changed then the module will return changed. The tree dictionary can be examined to determine which path triggered the state.</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">true</span></code></p>
+</div></td>
+</tr>
+<tr class="row-odd"><td><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-failed"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-failed"><strong>failed</strong></p>
+<a class="ansibleOptionLink" href="#return-failed" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">boolean</span></p>
+</div></td>
+<td><div class="ansible-option-cell"><p>The normal module failed return. If any path changed then the module will return changed. The tree dictionary can be examined to determine which path triggered the state.</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">true</span></code></p>
+</div></td>
+</tr>
+<tr class="row-even"><td><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree"><strong>tree</strong></p>
+<a class="ansibleOptionLink" href="#return-tree" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">dictionary</span></p>
+</div></td>
+<td><div class="ansible-option-cell"><p>Dictionary containing all of the processed directories and files.</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+</div></td>
+</tr>
+<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/changed"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-changed"><strong>changed</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/changed" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">boolean</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>If this specific path changed</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">true</span></code></p>
+</div></td>
+</tr>
+<tr class="row-even"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/checksum"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-checksum"><strong>checksum</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/checksum" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>SHA1 checksum of the file after execution</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">&quot;5fe9b424a895c7036c1631f04cba7418d3dff45c&quot;</span></code></p>
+</div></td>
+</tr>
+<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/delete_unmanaged"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-delete-unmanaged"><strong>delete_unmanaged</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/delete_unmanaged" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">boolean</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>If the delete_unmanaged option has been set for this specific path</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">false</span></code></p>
+</div></td>
+</tr>
+<tr class="row-even"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/failed"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-failed"><strong>failed</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/failed" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">boolean</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>If this specific path failed</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">true</span></code></p>
+</div></td>
+</tr>
+<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/gid"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-gid"><strong>gid</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/gid" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">integer</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>GID of the path after execution</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">23</span></code></p>
+</div></td>
+</tr>
+<tr class="row-even"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/group"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-group"><strong>group</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/group" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>Group of the path after execution</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">&quot;audio&quot;</span></code></p>
+</div></td>
+</tr>
+<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/managed"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-managed"><strong>managed</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/managed" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">boolean</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>If the path is a managed directory</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">true</span></code></p>
+</div></td>
+</tr>
+<tr class="row-even"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/mode"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-mode"><strong>mode</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/mode" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>Permissions of the path after execution</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">&quot;0644&quot;</span></code></p>
+</div></td>
+</tr>
+<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/notify"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-notify"><strong>notify</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/notify" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">list</span> / <span class="ansible-option-elements">elements=string</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>List of the notifications configured for this path</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">[&quot;Restart</span> <span class="pre">Bob&quot;,</span> <span class="pre">&quot;Reload</span> <span class="pre">Jim&quot;]</span></code></p>
+</div></td>
+</tr>
+<tr class="row-even"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/owner"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-owner"><strong>owner</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/owner" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>Owner of the path after execution</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">&quot;root&quot;</span></code></p>
+</div></td>
+</tr>
+<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/path"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-path"><strong>path</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/path" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>The full path string</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">&quot;/etc/apt/sources.list.d/more.sources&quot;</span></code></p>
+</div></td>
+</tr>
+<tr class="row-even"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/size"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-size"><strong>size</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/size" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">integer</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>Size of the path in bytes</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">1234</span></code></p>
+</div></td>
+</tr>
+<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/uid"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-uid"><strong>uid</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/uid" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">integer</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>UID of the path after execution</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">1000</span></code></p>
+</div></td>
+</tr>
+<tr class="row-even"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-tree/unmanaged_contents"></div><p class="ansible-option-title" id="ansible-collections-lod-filedrop-filedrop-module-return-tree-unmanaged-contents"><strong>unmanaged_contents</strong></p>
+<a class="ansibleOptionLink" href="#return-tree/unmanaged_contents" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">list</span> / <span class="ansible-option-elements">elements=string</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>List of unmanaged paths inside this directory. If the delete_unmanaged option is set then these paths will have been removed.</p>
+<p class="ansible-option-line"><strong class="ansible-option-returned-bold">Returned:</strong> always</p>
+<p class="ansible-option-line ansible-option-sample"><strong class="ansible-option-sample-bold">Sample:</strong> <code class="ansible-option-sample docutils literal notranslate"><span class="pre">[&quot;afile&quot;,</span> <span class="pre">&quot;adirectory&quot;,</span> <span class="pre">&quot;another_file&quot;]</span></code></p>
+</div></td>
+</tr>
+</tbody>
+</table>
 <section id="authors">
 <h3>Authors<a class="headerlink" href="#authors" title="Link to this heading"></a></h3>
 <ul class="simple">
