@@ -10,9 +10,9 @@ short_description: Drop a tree of files onto the remote system
 version_added: '1.0.0'
 author: David Tulloh (@lod)
 description:
-  - Transfers a structured directory tree of files including directory creation, permission management and fine control handler notifications.
+  - Transfers a structured directory tree of files including rendering templates, directory creation, permission management and fine control handler notifications.
   - This action is designed for complex implementations, it excels at simplifying roles that touch multiple service configurations.
-  - The action follows the principle of keeping the simple things simplex and the complex things possible.  Much of the documentation is focused on the complex, most implementations should rarely require specific configuration.
+  - The action follows the principle of keeping the simple things simple and the complex things possible.  Much of the documentation is focused on the complex, most implementations should rarely require specific configuration.
   - Performance matches running M(ansible.builtin.copy) as this action plugin orchestrates the builtin copy and file operations.  The use of pipelining is strongly recommended as this significantly increases the speed. There is significant scope to improve the performance by shifting some of the logic to the remote system and parallelising some operations, this may be tackled in the future if there is a need.
 
 options:
@@ -120,15 +120,9 @@ options:
 
 notes:
   - In the event of a failure processing will continue with the rest of the tree. The final status will be failure and the failure msg will reference all the failed elements.
-  - Symlinks in the source tree are interpreted as normal files and will result in a file on the destination system containing the contents, not a symlink.
   - The github repository molecule directory shows examples of all of the options and directory files being tested including in some extreme ways.
   - WARNING - Using the standard task based notification system on this task will overwrite the custom notifications returned by this task.  They cannot both be used together.
 """
-
-# TODO:
-#   Could optimize by sending bulk requests, requires custom client side module
-#   Add examples and return details
-
 
 EXAMPLES = r"""
 - name: Transfer from files to remote host
