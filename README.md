@@ -9,3 +9,5 @@ It is designed to significantly simplify more complex roles with lots of files a
 Documentation for the action is available at https://lod.github.io/filedrop/filedrop_module.html
 
 To make best use of filedrop lean into configuration.d directories with configuration fragment.  This is increasingly the recommended Linux practice and makes managing configuration significantly simpler.
+
+This collection can be installed via Ansible Galaxy `ansible-galaxy collection install lod.filedrop` details are at https://galaxy.ansible.com/ui/repo/published/lod/filedrop/.
